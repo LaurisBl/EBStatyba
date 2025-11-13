@@ -23,6 +23,12 @@ dist-ssr
 *.sln
 *.sw?
 
+# Credentials / environment configs
+service-account.json
+.env.*
+firebase-debug.log*
+.firebase/
+
 # Node.js
 node_modules/
 .env

@@ -1,668 +1,416 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard - Statyba</title>
-    <link rel="icon" href="https://placehold.co/16x16/000000/FFFFFF/png?text=S" type="image/png"> <!-- Added favicon -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        body {
-            font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-            min-height: 100vh;
-            background-color: #f3f4f6; /* Light gray background for admin editor */
-        }
-        .section-header-editable {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            background-color: #e2e8f0; /* Light blue-gray for section headers */
-            padding: 1rem;
-            border-radius: 0.5rem;
-            margin-bottom: 1rem;
-        }
-        .editable-wrapper {
-            display: flex;
-            align-items: flex-start; /* Align text and button to the top */
-            gap: 0.5rem;
-            margin-bottom: 0.5rem; /* Space between editable items */
-            padding: 0.25rem;
-            border: 1px dashed transparent; /* Default transparent border */
-            transition: border-color 0.2s ease;
-            position: relative; /* For the data-text-id tooltip */
-        }
-        .editable-wrapper:hover {
-            border-color: #a78bfa; /* Purple on hover */
-        }
-        .editable-wrapper .edit-btn {
-            flex-shrink: 0; /* Prevent button from shrinking */
-            align-self: center; /* Center button vertically within wrapper */
-            padding: 0.3rem 0.6rem;
-            font-size: 0.8rem;
-            border-radius: 0.375rem; /* Rounded corners */
-            background-color: #6366f1; /* Indigo-500 */
-            color: white;
-            transition: background-color 0.2s ease, transform 0.1s ease;
-            cursor: pointer;
-            border: none;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-        }
-        .editable-wrapper .edit-btn:hover {
-            background-color: #4f46e5; /* Indigo-600 */
-            transform: translateY(-1px);
-        }
-
-        /* Modal styles for editing */
-        .edit-modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.6);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 10000; /* Higher than other modals */
-            opacity: 0;
-            visibility: hidden;
-            transition: opacity 0.3s ease, visibility 0.3s ease;
-        }
-        .edit-modal-overlay.open {
-            opacity: 1;
-            visibility: visible;
-        }
-        .edit-modal-content {
-            background-color: white;
-            padding: 2rem;
-            border-radius: 1rem;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-            position: relative;
-            width: 90%;
-            max-width: 600px;
-            transform: translateY(-20px);
-            opacity: 0;
-            transition: transform 0.3s ease, opacity 0.3s ease;
-        }
-        .edit-modal-overlay.open .edit-modal-content {
-            transform: translateY(0);
-            opacity: 1;
-        }
-        .edit-modal-close-btn {
-            position: absolute;
-            top: 1rem;
-            right: 1rem;
-            background: none;
-            border: none;
-            font-size: 1.5rem;
-            cursor: pointer;
-            color: #9ca3af;
-        }
-        .edit-modal-textarea {
-            width: 100%;
-            padding: 0.75rem;
-            border: 1px solid #d1d5db;
-            border-radius: 0.5rem;
-            min-height: 100px;
-            font-size: 1rem;
-            line-height: 1.5;
-            resize: vertical;
-            margin-bottom: 1rem;
-            box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);
-        }
-        .edit-modal-textarea:focus {
-            outline: none;
-            border-color: #6366f1;
-            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
-        }
-
-        /* General Admin UI styles */
-        .spinner {
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #3b82f6;
-            border-radius: 50%;
-            width: 20px;
-            height: 20px;
-            animation: spin 1s linear infinite;
-            display: inline-block;
-            vertical-align: middle; /* Align spinner with text */
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        /* CAPTCHA styling */
-        .captcha-container {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: #f3f4f6;
-            border: 2px dashed #9ca3af;
-            border-radius: 12px;
-            padding: 20px;
-            font-family: 'Courier New', monospace;
-            font-size: 24px;
-            font-weight: bold;
-            letter-spacing: 3px;
-            user-select: none;
-            text-align: center;
-            min-height: 80px;
-        }
-
-        /* Modal styles (for Add Project, Notification, Confirmation) */
-        .modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.5);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 10000;
-        }
-        .modal-content {
-            background-color: white;
-            padding: 32px;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            position: relative;
-            width: 90%;
-            max-width: 500px;
-            text-align: center;
-        }
-        /* SR-only for screen readers */
-        .sr-only {
-            position: absolute;
-            width: 1px;
-            height: 1px;
-            padding: 0;
-            margin: -1px;
-            overflow: hidden;
-            clip: rect(0, 0, 0, 0);
-            white-space: nowrap;
-            border-width: 0;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Dashboard - Statyba</title>
+  <link rel="icon" href="https://placehold.co/16x16/000000/FFFFFF/png?text=EB" type="image/png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./assets/tailwind.css" />
 </head>
-<body class="bg-gray-50 min-h-screen flex flex-col">
-    <!-- Login Section -->
-    <div id="login-section" class="min-h-screen bg-gradient-to-r from-purple-500 to-indigo-600 flex items-center justify-center p-6">
-        <div class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
-            <div class="text-center mb-8">
-                <div class="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4" aria-hidden="true">
-                    <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
-                    </svg>
-                </div>
-                <h1 class="text-2xl font-bold text-gray-900 mb-2">Admin Dashboard Login</h1>
-                <p class="text-gray-600">Enter admin credentials to access the dashboard.</p>
-            </div>
-            
-            <form id="login-form" class="space-y-6">
-                <!-- CAPTCHA -->
-                <div>
-                    <label for="captcha-input" class="block text-sm font-medium text-gray-700 mb-2">Security Check</label>
-                    <div class="captcha-container mb-3" id="captcha-display" aria-live="off">
-                        <!-- CAPTCHA will be generated here -->
-                    </div>
-                    <input type="text" id="captcha-input" placeholder="Enter the characters shown above" 
-                           class="w-full p-4 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-                           required autocomplete="off" aria-label="Enter CAPTCHA characters">
-                    <button type="button" id="refresh-captcha" 
-                            class="mt-2 text-sm text-blue-600 hover:text-blue-800 transition-colors">
-                        🔄 Generate New CAPTCHA
-                    </button>
-                </div>
+<body class="bg-slate-50 text-slate-900 min-h-screen font-[Inter]">
+  <div id="admin-loading" class="fixed inset-0 flex items-center justify-center bg-white z-50">
+    <div class="flex items-center gap-3 text-slate-600">
+      <span class="spinner text-orange-600"></span>
+      <span class="font-medium">Preparing admin tools...</span>
+    </div>
+  </div>
 
-                <!-- Email Input -->
-                <div>
-                  <label for="email" class="block text-sm font-medium text-gray-700 mb-2">Email</label>
-                  <input type="email" id="email" placeholder="Enter admin email" 
-                         class="w-full p-4 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-                         required autocomplete="username" aria-label="Admin email">
-                </div>
-
-                <div>
-                    <label for="password" class="block text-sm font-medium text-gray-700 mb-2">Password</label>
-                    <input type="password" id="password" placeholder="Enter admin password" 
-                           class="w-full p-4 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-                           required autocomplete="current-password" aria-label="Admin password">
-                </div>
-
-                <!-- Cooldown message -->
-                <div id="cooldown-message" class="hidden bg-yellow-50 border border-yellow-200 rounded-lg p-3" role="alert" aria-live="assertive">
-                    <div class="flex items-center">
-                        <svg class="w-5 h-5 text-yellow-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                        </svg>
-                        <span class="text-sm text-yellow-700">Too many attempts. Please wait <span id="cooldown-timer">30</span> seconds.</span>
-                    </div>
-                </div>
-
-                <button type="submit" id="login-btn" 
-                        class="w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white p-4 rounded-xl font-semibold hover:shadow-lg transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100" aria-label="Access Dashboard">
-                    <span id="login-btn-text">Access Dashboard</span>
-                </button>
-            </form>
-
-            <!-- Failed attempts counter -->
-            <div id="attempts-counter" class="mt-4 text-center text-sm text-gray-500 hidden" aria-live="polite">
-                Failed attempts: <span id="attempts-count">0</span>/5
-            </div>
+  <main class="page-container py-12 space-y-12">
+    <div class="flex justify-end">
+      <div id="language-selector" class="relative">
+        <button id="language-toggle" type="button" class="flex items-center gap-2 bg-white border border-slate-200 text-slate-900 text-sm font-semibold px-4 py-2 rounded-full shadow-sm hover:shadow transition" aria-haspopup="true" aria-expanded="false" data-i18n-aria-label="language.toggleAria">
+          <span id="language-toggle-label">LT</span>
+          <svg class="w-4 h-4 text-slate-500" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.939l3.71-3.71a.75.75 0 111.06 1.061l-4.24 4.24a.75.75 0 01-1.06 0l-4.24-4.24a.75.75 0 01.02-1.06z" clip-rule="evenodd"/>
+          </svg>
+        </button>
+        <div id="language-menu" class="absolute right-0 mt-2 w-44 bg-white border border-slate-200 rounded-2xl shadow-xl py-1 hidden z-10" role="menu" aria-label="Select language" data-i18n-aria-label="language.menuLabel">
+          <button type="button" class="language-option flex items-center justify-between w-full px-4 py-2 text-sm text-slate-600 hover:bg-slate-50" data-language-option="lt" data-i18n-aria-label="language.optionLtAria">
+            <span class="font-semibold text-slate-900">LT</span>
+            <span class="text-xs text-slate-500">Lietuvių</span>
+          </button>
+          <button type="button" class="language-option flex items-center justify-between w-full px-4 py-2 text-sm text-slate-600 hover:bg-slate-50" data-language-option="en" data-i18n-aria-label="language.optionEnAria">
+            <span class="font-semibold text-slate-900">EN</span>
+            <span class="text-xs text-slate-500">English</span>
+          </button>
         </div>
+      </div>
     </div>
 
-    <!-- Admin Dashboard -->
-    <div id="admin-dashboard" class="hidden flex-grow">
-        <header class="bg-white shadow-sm border-b border-gray-200">
-            <div class="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
-                <div class="flex items-center space-x-3">
-                    <div class="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center" aria-hidden="true">
-                        <span class="text-white font-bold text-lg">S</span>
-                    </div>
-                    <div>
-                        <h1 class="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
-                        <p class="text-sm text-gray-600">Manage website content, projects, and messages.</p>
-                    </div>
-                </div>
-                <div class="flex space-x-4">
-                    <!-- Save All Changes button for Content Editor tab -->
-                    <button id="save-all-changes-btn" class="bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-lg transition-colors duration-200 flex items-center disabled:opacity-50 disabled:cursor-not-allowed" aria-label="Save all content changes">
-                        <span id="save-all-changes-text">Save All Changes</span>
-                        <span id="save-all-changes-spinner" class="spinner ml-2 hidden" role="status" aria-label="Saving all changes"></span>
-                    </button>
-                    <button id="editor-logout-btn" class="bg-red-500 hover:bg-red-600 text-white px-6 py-2 rounded-lg transition-colors duration-200" aria-label="Logout from admin dashboard">
-                        Logout
-                    </button>
-                </div>
+    <section id="admin-login-section" class="max-w-xl mx-auto bg-white rounded-3xl shadow-2xl p-8 space-y-6 hidden" hidden style="display:none;">
+      <div class="text-center space-y-3">
+        <p id="login-badge-text" class="text-sm uppercase tracking-wide text-orange-600 font-semibold" data-i18n="login.badge">Admin access</p>
+        <h1 id="login-heading-text" class="text-3xl font-bold" data-i18n="login.heading">Sign in to continue</h1>
+      </div>
+      <div class="space-y-3">
+        <button id="google-login-button" class="w-full flex items-center justify-center gap-3 bg-white text-slate-900 border border-slate-200 font-semibold py-3 rounded-2xl shadow-lg hover:shadow-xl transition" aria-label="Sign in with Google" data-i18n-aria-label="login.googleAria">
+          <svg class="w-5 h-5" viewBox="0 0 533.5 544.3" aria-hidden="true">
+            <path fill="#4285f4" d="M533.5 278.4c0-17.4-1.6-34.1-4.7-50.2H272v95h146.9c-6.3 34-25 62.8-53.3 82v68h86.2c50.5-46.6 81.7-115.4 81.7-194.8z"/>
+            <path fill="#34a853" d="M272 544.3c72.5 0 133.3-24 177.7-65.1l-86.2-68c-23.9 16.1-54.6 25.5-91.5 25.5-70.3 0-129.9-47.5-151.2-111.2h-89v69.9C75.4 482.1 167.7 544.3 272 544.3z"/>
+            <path fill="#fbbc05" d="M120.8 325.5c-10.3-30.9-10.3-64.1 0-95l-89-69.9C4.4 210 0 239.4 0 272.2s4.4 62.1 31.8 111.6l89-69.9z"/>
+            <path fill="#ea4335" d="M272 107.7c39.5 0 75 13.6 103 40.3l77.2-77.2C405.1 24 344.3 0 272 0 167.7 0 75.4 62.2 31.8 160.6l89 69.9C142.1 155.2 201.7 107.7 272 107.7z"/>
+          </svg>
+          <span id="google-login-text" data-i18n="login.googleButton">Continue with Google</span>
+          <span id="google-login-spinner" class="spinner hidden" role="status" aria-label="Signing in" data-i18n-aria-label="login.spinnerAria"></span>
+        </button>
+        <p id="login-error-message" class="text-sm text-red-600 text-center hidden" aria-live="assertive"></p>
+      </div>
+    </section>
+
+    <section id="admin-dashboard" class="space-y-8 hidden" hidden style="display:none;" aria-hidden="true">
+      <header class="flex flex-wrap items-center justify-between gap-4">
+        <div class="flex items-center gap-4">
+          <div class="w-12 h-12 rounded-2xl bg-gradient-to-r from-orange-600 to-red-600 flex items-center justify-center shadow-md editable-element" data-editable-gradient-id="logo-s-bg-gradient">
+            <span class="text-white text-xl font-bold editable-element" data-editable-text-id="logo-s-text" data-editable-color-id="logo-s-color">EB</span>
+          </div>
+          <div>
+            <p class="text-sm uppercase tracking-wide text-orange-600 font-semibold">Statyba</p>
+            <div class="flex items-center gap-2">
+              <h1 class="text-3xl font-bold" data-i18n="header.title">Admin Panel</h1>
             </div>
-        </header>
-
-        <main class="max-w-7xl mx-auto px-6 py-8">
-            <!-- Tabs Navigation -->
-            <div role="tablist" class="flex border-b border-gray-200 mb-8">
-                <button role="tab" id="portfolio-tab-btn" data-tab="portfolio" aria-controls="portfolio-tab" aria-selected="true" tabindex="0"
-                        class="tab-btn py-3 px-6 text-gray-600 font-medium border-b-2 border-blue-500 text-blue-600 hover:text-gray-700 transition-colors duration-200">
-                    Projects (<span id="total-projects">0</span>)
-                </button>
-                <button role="tab" id="messages-tab-btn" data-tab="messages" aria-controls="messages-tab" aria-selected="false" tabindex="-1"
-                        class="tab-btn py-3 px-6 text-gray-500 font-medium border-b-2 border-transparent hover:text-gray-700 hover:border-gray-300 transition-colors duration-200">
-                    Messages (<span id="total-messages">0</span>)
-                </button>
-                <button role="tab" id="content-editor-tab-btn" data-tab="content-editor" aria-controls="content-editor-tab" aria-selected="false" tabindex="-1"
-                        class="tab-btn py-3 px-6 text-gray-500 font-medium border-b-2 border-transparent hover:text-gray-700 hover:border-gray-300 transition-colors duration-200">
-                    Content Editor
-                </button>
-            </div>
-
-            <!-- Tab Content: Projects -->
-            <section id="portfolio-tab" class="tab-content" role="tabpanel" aria-labelledby="portfolio-tab-btn">
-                <h2 class="text-3xl font-bold text-gray-900 mb-8">Manage Projects</h2>
-                <div class="bg-white rounded-xl shadow-sm p-6 mb-8">
-                    <div class="flex justify-between items-center mb-6">
-                        <h3 class="text-xl font-semibold text-gray-900">Current Projects</h3>
-                        <button id="add-project-modal-btn" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg font-medium transition-colors" aria-label="Add new project">
-                            + Add New Project
-                        </button>
-                    </div>
-                    <!-- Loading spinner for projects list -->
-                    <div id="projects-loading-spinner" class="flex justify-center items-center py-8 hidden" role="status" aria-live="polite" aria-label="Loading projects list">
-                        <div class="spinner"></div>
-                        <span class="ml-2 text-gray-600">Loading projects...</span>
-                    </div>
-                    <div id="projects-list" class="space-y-4">
-                        <!-- Projects will be loaded here -->
-                        <p class="text-center text-gray-500 hidden" id="no-projects-found">No projects added yet.</p>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Tab Content: Messages -->
-            <section id="messages-tab" class="tab-content hidden" role="tabpanel" aria-labelledby="messages-tab-btn">
-                <h2 class="text-3xl font-bold text-gray-900 mb-8">Customer Messages</h2>
-                <div class="bg-white rounded-xl shadow-sm p-6 mb-8">
-                    <h3 class="text-xl font-semibold text-gray-900 mb-6">Recent Enquiries</h3>
-                    <!-- Loading spinner for messages list -->
-                    <div id="messages-loading-spinner" class="flex justify-center items-center py-8 hidden" role="status" aria-live="polite" aria-label="Loading messages list">
-                        <div class="spinner"></div>
-                        <span class="ml-2 text-gray-600">Loading messages...</span>
-                    </div>
-                    <div id="messages-list" class="space-y-4">
-                        <!-- Messages will be loaded here -->
-                    </div>
-                    <p class="text-center text-gray-500 hidden mt-4" id="no-messages-found">No messages found.</p>
-                </div>
-            </section>
-
-            <!-- Tab Content: Content Editor -->
-            <section id="content-editor-tab" class="tab-content hidden" role="tabpanel" aria-labelledby="content-editor-tab-btn">
-                <h2 class="text-3xl font-bold text-gray-900 mb-8">Editable Sections</h2>
-                
-                <!-- Site Header Editable Content -->
-                <section class="bg-white rounded-xl shadow-sm p-6 mb-8">
-                    <div class="section-header-editable">
-                        <h3 class="text-xl font-semibold text-gray-900">Site Header</h3>
-                    </div>
-                    <div class="space-y-4">
-                        <div class="editable-wrapper">
-                            <span id="display-logo-s" data-text-id="logo-s" data-tag-name="SPAN" class="text-xl font-bold text-gray-900">S</span>
-                            <button class="edit-text-btn" data-target-id="display-logo-s" aria-label="Edit site logo initial">Edit</button>
-                        </div>
-                        <div class="editable-wrapper">
-                            <span id="display-site-title" data-text-id="site-title" data-tag-name="H1" class="text-2xl font-bold text-gray-900">Statyba</span>
-                            <button class="edit-text-btn" data-target-id="display-site-title" aria-label="Edit site title">Edit</button>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- Hero Section Editable Content -->
-                <section class="bg-white rounded-xl shadow-sm p-6 mb-8">
-                    <div class="section-header-editable">
-                        <h3 class="text-xl font-semibold text-gray-900">Hero Section</h3>
-                    </div>
-                    <div class="space-y-4">
-                        <div class="editable-wrapper">
-                            <span id="display-hero-title" data-text-id="hero-title" data-tag-name="H2" class="text-5xl md:text-7xl font-bold text-gray-900">Building Your <span class="block mt-2">Dream Projects</span></span>
-                            <button class="edit-text-btn" data-target-id="display-hero-title" aria-label="Edit hero title">Edit</button>
-                        </div>
-                        <div class="editable-wrapper">
-                            <span id="display-hero-subtitle" data-text-id="hero-subtitle" data-tag-name="P" class="text-xl md:text-2xl text-gray-600">Professional construction services for a better tomorrow</span>
-                            <button class="edit-text-btn" data-target-id="display-hero-subtitle" aria-label="Edit hero subtitle">Edit</button>
-                        </div>
-                        <div class="editable-wrapper">
-                            <span id="display-hero-projects-button" data-text-id="hero-projects-button" data-tag-name="A" class="text-lg md:text-xl font-semibold text-gray-800">View Our Projects</span>
-                            <button class="edit-text-btn" data-target-id="display-hero-projects-button" aria-label="Edit hero projects button text">Edit</button>
-                        </div>
-                        <div class="editable-wrapper">
-                            <span id="display-hero-quote-button" data-text-id="hero-quote-button" data-tag-name="A" class="text-lg md:text-xl font-semibold text-gray-800">Get A Quote</span>
-                            <button class="edit-text-btn" data-target-id="display-hero-quote-button" aria-label="Edit hero quote button text">Edit</button>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- About Section Editable Content -->
-                <section class="bg-white rounded-xl shadow-sm p-6 mb-8">
-                    <div class="section-header-editable">
-                        <h3 class="text-xl font-semibold text-gray-900">About Section</h3>
-                    </div>
-                    <div class="space-y-4">
-                        <div class="editable-wrapper">
-                            <span id="display-about-heading" data-text-id="about-heading" data-tag-name="H2" class="text-4xl font-bold text-gray-900">About Us</span>
-                            <button class="edit-text-btn" data-target-id="display-about-heading" aria-label="Edit about us heading">Edit</button>
-                        </div>
-                        <div class="editable-wrapper">
-                            <span id="display-about-description" data-text-id="about-description" data-tag-name="P" class="text-lg text-gray-600">We're a professional construction company in Lithuania, delivering high-quality building solutions with modern techniques and reliable service.</span>
-                            <button class="edit-text-btn" data-target-id="display-about-description" aria-label="Edit about us description">Edit</button>
-                        </div>
-                        <div class="editable-wrapper">
-                            <span id="display-about-projects-count" data-text-id="about-projects-count" data-tag-name="DIV" class="text-3xl font-bold text-orange-600">100+</span>
-                            <button class="edit-text-btn" data-target-id="display-about-projects-count" aria-label="Edit projects count">Edit</button>
-                        </div>
-                         <div class="editable-wrapper">
-                            <span id="display-about-projects-label" data-text-id="about-projects-label" data-tag-name="DIV" class="text-gray-600">Projects Completed</span>
-                            <button class="edit-text-btn" data-target-id="display-about-projects-label" aria-label="Edit projects label">Edit</button>
-                        </div>
-                        <div class="editable-wrapper">
-                            <span id="display-about-years-count" data-text-id="about-years-count" data-tag-name="DIV" class="text-3xl font-bold text-red-600">15+</span>
-                            <button class="edit-text-btn" data-target-id="display-about-years-count" aria-label="Edit years experience count">Edit</button>
-                        </div>
-                        <div class="editable-wrapper">
-                            <span id="display-about-years-label" data-text-id="about-years-label" data-tag-name="DIV" class="text-gray-600">Years Experience</span>
-                            <button class="edit-text-btn" data-target-id="display-about-years-label" aria-label="Edit years experience label">Edit</button>
-                        </div>
-                        <div class="editable-wrapper">
-                            <span id="display-mission-heading" data-text-id="mission-heading" data-tag-name="H3" class="text-2xl font-semibold text-gray-900">Our Mission</span>
-                            <button class="edit-text-btn" data-target-id="display-mission-heading" aria-label="Edit mission heading">Edit</button>
-                        </div>
-                        <div class="editable-wrapper">
-                            <span id="display-mission-description" data-text-id="mission-description" data-tag-name="P" class="text-gray-600">To build exceptional structures that stand the test of time while providing outstanding value and service to our clients.</span>
-                            <button class="edit-text-btn" data-target-id="display-mission-description" aria-label="Edit mission description">Edit</button>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- Services Section Editable Content -->
-                <section class="bg-white rounded-xl shadow-sm p-6 mb-8">
-                    <div class="section-header-editable">
-                        <h3 class="text-xl font-semibold text-gray-900">Services Section</h3>
-                    </div>
-                    <div class="space-y-4">
-                        <div class="editable-wrapper">
-                            <span id="display-services-heading" data-text-id="services-heading" data-tag-name="H2" class="text-4xl font-bold text-gray-900">Our Services</span>
-                            <button class="edit-text-btn" data-target-id="display-services-heading" aria-label="Edit services heading">Edit</button>
-                        </div>
-                        <div class="editable-wrapper">
-                            <span id="display-services-subtitle" data-text-id="services-subtitle" data-tag-name="P" class="text-lg text-gray-600">Complete construction solutions for your needs</span>
-                            <button class="edit-text-btn" data-target-id="display-services-subtitle" aria-label="Edit services subtitle">Edit</button>
-                        </div>
-                        <div class="editable-wrapper">
-                            <span id="display-service-residential-heading" data-text-id="service-residential-heading" data-tag-name="H3" class="text-xl font-semibold">Residential Construction</span>
-                            <button class="edit-text-btn" data-target-id="display-service-residential-heading" aria-label="Edit residential construction heading">Edit</button>
-                        </div>
-                        <div class="editable-wrapper">
-                            <span id="display-service-residential-description" data-text-id="service-residential-description" data-tag-name="P" class="text-gray-600">Custom homes and residential buildings designed to meet your family's needs.</span>
-                            <button class="edit-text-btn" data-target-id="display-service-residential-description" aria-label="Edit residential construction description">Edit</button>
-                        </div>
-                        <div class="editable-wrapper">
-                            <span id="display-service-commercial-heading" data-text-id="service-commercial-heading" data-tag-name="H3" class="text-xl font-semibold">Commercial Projects</span>
-                            <button class="edit-text-btn" data-target-id="display-service-commercial-heading" aria-label="Edit commercial projects heading">Edit</button>
-                        </div>
-                        <div class="editable-wrapper">
-                            <span id="display-service-commercial-description" data-text-id="service-commercial-description" data-tag-name="P" class="text-gray-600">Professional commercial buildings and office spaces built to specifications.</span>
-                            <button class="edit-text-btn" data-target-id="display-service-commercial-description" aria-label="Edit commercial projects description">Edit</button>
-                        </div>
-                        <div class="editable-wrapper">
-                            <span id="display-service-renovation-heading" data-text-id="service-renovation-heading" data-tag-name="H3" class="text-xl font-semibold">Renovation & Remodeling</span>
-                            <button class="edit-text-btn" data-target-id="display-service-renovation-heading" aria-label="Edit renovation heading">Edit</button>
-                        </div>
-                        <div class="editable-wrapper">
-                            <span id="display-service-renovation-description" data-text-id="service-renovation-description" data-tag-name="P" class="text-gray-600">Transform existing spaces with modern renovations and improvements.</span>
-                            <button class="edit-text-btn" data-target-id="display-service-renovation-description" aria-label="Edit renovation description">Edit</button>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- Portfolio Section Editable Content -->
-                <section class="bg-white rounded-xl shadow-sm p-6 mb-8">
-                    <div class="section-header-editable">
-                        <h3 class="text-xl font-semibold text-gray-900">Portfolio Section</h3>
-                    </div>
-                    <div class="space-y-4">
-                        <div class="editable-wrapper">
-                            <span id="display-portfolio-heading" data-text-id="portfolio-heading" data-tag-name="H2" class="text-4xl font-bold text-gray-900">Our Portfolio</span>
-                            <button class="edit-text-btn" data-target-id="display-portfolio-heading" aria-label="Edit portfolio heading">Edit</button>
-                        </div>
-                        <div class="editable-wrapper">
-                            <span id="display-portfolio-subtitle" data-text-id="portfolio-subtitle" data-tag-name="P" class="text-lg text-gray-600">Recent construction projects we're proud of</span>
-                            <button class="edit-text-btn" data-target-id="display-portfolio-subtitle" aria-label="Edit portfolio subtitle">Edit</button>
-                        </div>
-                        <div class="editable-wrapper">
-                            <span id="display-portfolio-error-heading" data-text-id="portfolio-error-heading" data-tag-name="H3" class="text-xl font-semibold text-gray-700">Error Loading Portfolio</span>
-                            <button class="edit-text-btn" data-target-id="display-portfolio-error-heading" aria-label="Edit portfolio error heading">Edit</button>
-                        </div>
-                        <div class="editable-wrapper">
-                            <span id="display-portfolio-error-description" data-text-id="portfolio-error-description" data-tag-name="P" class="text-gray-600">There was an issue fetching projects. Please try again later.</span>
-                            <button class="edit-text-btn" data-target-id="display-portfolio-error-description" aria-label="Edit portfolio error description">Edit</button>
-                        </div>
-                        <div class="editable-wrapper">
-                            <span id="display-view-all-projects-button" data-text-id="view-all-projects-button" data-tag-name="BUTTON" class="text-lg font-semibold">View All Projects</span>
-                            <button class="edit-text-btn" data-target-id="display-view-all-projects-button" aria-label="Edit view all projects button text">Edit</button>
-                        </div>
-                        <div class="editable-wrapper">
-                            <span id="display-all-projects-modal-heading" data-text-id="all-projects-modal-heading" data-tag-name="H3" class="text-2xl font-bold text-gray-900">All Projects</span>
-                            <button class="edit-text-btn" data-target-id="display-all-projects-modal-heading" aria-label="Edit all projects modal heading">Edit</button>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- Contact Section Editable Content -->
-                <section class="bg-white rounded-xl shadow-sm p-6 mb-8">
-                    <div class="section-header-editable">
-                        <h3 class="text-xl font-semibold text-gray-900">Contact Section</h3>
-                    </div>
-                    <div class="space-y-4">
-                        <div class="editable-wrapper">
-                            <span id="display-contact-heading" data-text-id="contact-heading" data-tag-name="H2" class="text-4xl font-bold text-gray-900">Get In Touch</span>
-                            <button class="edit-text-btn" data-target-id="display-contact-heading" aria-label="Edit contact heading">Edit</button>
-                        </div>
-                        <div class="editable-wrapper">
-                            <span id="display-contact-subtitle" data-text-id="contact-subtitle" data-tag-name="P" class="text-lg text-gray-600">Ready to start your construction project? Let's discuss!</span>
-                            <button class="edit-text-btn" data-target-id="display-contact-subtitle" aria-label="Edit contact subtitle">Edit</button>
-                        </div>
-                        <div class="editable-wrapper">
-                            <span id="display-contact-email-label" data-text-id="contact-email-label" data-tag-name="DIV" class="font-semibold text-gray-900">Email</span>
-                            <button class="edit-text-btn" data-target-id="display-contact-email-label" aria-label="Edit contact email label">Edit</button>
-                        </div>
-                        <div class="editable-wrapper">
-                            <span id="display-contact-email-value" data-text-id="contact-email-value" data-tag-name="DIV" class="text-gray-600">your.email@example.com</span>
-                            <button class="edit-text-btn" data-target-id="display-contact-email-value" aria-label="Edit contact email value">Edit</button>
-                        </div>
-                        <div class="editable-wrapper">
-                            <span id="display-contact-phone-label" data-text-id="contact-phone-label" data-tag-name="DIV" class="font-semibold text-gray-900">Phone</span>
-                            <button class="edit-text-btn" data-target-id="display-contact-phone-label" aria-label="Edit contact phone label">Edit</button>
-                        </div>
-                        <div class="editable-wrapper">
-                            <span id="display-contact-phone-value" data-text-id="contact-phone-value" data-tag-name="DIV" class="text-gray-600">+370 000 0000</span>
-                            <button class="edit-text-btn" data-target-id="display-contact-phone-value" aria-label="Edit contact phone value">Edit</button>
-                        </div>
-                        <div class="editable-wrapper">
-                            <span id="display-contact-location-label" data-text-id="contact-location-label" data-tag-name="DIV" class="font-semibold text-gray-900">Location</span>
-                            <button class="edit-text-btn" data-target-id="display-contact-location-label" aria-label="Edit contact location label">Edit</button>
-                        </div>
-                        <div class="editable-wrapper">
-                            <span id="display-contact-location-value" data-text-id="contact-location-value" data-tag-name="DIV" class="text-gray-600">Klaipėda, Lithuania</span>
-                            <button class="edit-text-btn" data-target-id="display-contact-location-value" aria-label="Edit contact location value">Edit</button>
-                        </div>
-                        <div class="editable-wrapper">
-                            <span id="display-contact-form-name-placeholder" data-text-id="contact-form-name-placeholder" data-tag-name="INPUT" data-is-placeholder="true" class="sr-only">Your Name (placeholder)</span>
-                            <button class="edit-text-btn" data-target-id="display-contact-form-name-placeholder" aria-label="Edit contact form name placeholder">Edit</button>
-                        </div>
-                        <div class="editable-wrapper">
-                            <span id="display-contact-form-email-placeholder" data-text-id="contact-form-email-placeholder" data-tag-name="INPUT" data-is-placeholder="true" class="sr-only">Your Email (placeholder)</span>
-                            <button class="edit-text-btn" data-target-id="display-contact-form-email-placeholder" aria-label="Edit contact form email placeholder">Edit</button>
-                        </div>
-                        <div class="editable-wrapper">
-                            <span id="display-contact-form-message-placeholder" data-text-id="contact-form-message-placeholder" data-tag-name="TEXTAREA" data-is-placeholder="true" class="sr-only">Tell us about your project (placeholder)</span>
-                            <button class="edit-text-btn" data-target-id="display-contact-form-message-placeholder" aria-label="Edit contact form message placeholder">Edit</button>
-                        </div>
-                        <div class="editable-wrapper">
-                            <span id="display-contact-form-submit-button" data-text-id="contact-form-submit-button" data-tag-name="BUTTON" class="text-lg font-semibold">Send Message</span>
-                            <button class="edit-text-btn" data-target-id="display-contact-form-submit-button" aria-label="Edit contact form submit button text">Edit</button>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- Footer Section Editable Content -->
-                <section class="bg-white rounded-xl shadow-sm p-6 mb-8">
-                    <div class="section-header-editable">
-                        <h3 class="text-xl font-semibold text-gray-900">Footer Section</h3>
-                    </div>
-                    <div class="space-y-4">
-                        <div class="editable-wrapper">
-                            <span id="display-logo-s-footer" data-text-id="logo-s" data-tag-name="SPAN" class="text-xl font-bold">S</span>
-                            <button class="edit-text-btn" data-target-id="display-logo-s-footer" aria-label="Edit footer logo initial">Edit</button>
-                        </div>
-                        <div class="editable-wrapper">
-                            <span id="display-footer-site-name" data-text-id="footer-site-name" data-tag-name="H3" class="text-xl font-bold">Statyba</span>
-                            <button class="edit-text-btn" data-target-id="display-footer-site-name" aria-label="Edit footer site name">Edit</button>
-                        </div>
-                        <div class="editable-wrapper">
-                            <span id="display-footer-tagline" data-text-id="footer-tagline" data-tag-name="P" class="text-gray-400">Building excellence in construction.</span>
-                            <button class="edit-text-btn" data-target-id="display-footer-tagline" aria-label="Edit footer tagline">Edit</button>
-                        </div>
-                        <div class="editable-wrapper">
-                            <span id="display-footer-services-heading" data-text-id="footer-services-heading" data-tag-name="H4" class="font-semibold">Services</span>
-                            <button class="edit-text-btn" data-target-id="display-footer-services-heading" aria-label="Edit footer services heading">Edit</button>
-                        </div>
-                        <div class="editable-wrapper">
-                            <span id="display-footer-service-residential" data-text-id="footer-service-residential" data-tag-name="LI" class="text-gray-400">Residential Construction</span>
-                            <button class="edit-text-btn" data-target-id="display-footer-service-residential" aria-label="Edit residential service text">Edit</button>
-                        </div>
-                        <div class="editable-wrapper">
-                            <span id="display-footer-service-commercial" data-text-id="footer-service-commercial" data-tag-name="LI" class="text-gray-400">Commercial Projects</span>
-                            <button class="edit-text-btn" data-target-id="display-footer-service-commercial" aria-label="Edit commercial service text">Edit</button>
-                        </div>
-                        <div class="editable-wrapper">
-                            <span id="display-footer-service-renovation" data-text-id="footer-service-renovation" data-tag-name="LI" class="text-gray-400">Renovation & Remodeling</span>
-                            <button class="edit-text-btn" data-target-id="display-footer-service-renovation" aria-label="Edit renovation service text">Edit</button>
-                        </div>
-                        <div class="editable-wrapper">
-                            <span id="display-footer-service-management" data-text-id="footer-service-management" data-tag-name="LI" class="text-gray-400">Project Management</span>
-                            <button class="edit-text-btn" data-target-id="display-footer-service-management" aria-label="Edit project management text">Edit</button>
-                        </div>
-                        <div class="editable-wrapper">
-                            <span id="display-footer-connect-heading" data-text-id="footer-connect-heading" data-tag-name="H4" class="font-semibold">Connect</span>
-                            <button class="edit-text-btn" data-target-id="display-footer-connect-heading" aria-label="Edit footer connect heading">Edit</button>
-                        </div>
-                        <div class="editable-wrapper">
-                            <span id="display-footer-copyright" data-text-id="footer-copyright" data-tag-name="P" class="text-gray-400">&copy; 2025 Statyba. All rights reserved.</span>
-                            <button class="edit-text-btn" data-target-id="display-footer-copyright" aria-label="Edit footer copyright text">Edit</button>
-                        </div>
-                    </div>
-                </section>
-            </section>
-        </main>
-    </div>
-
-    <!-- Add Project Modal -->
-    <div id="add-project-form-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="add-project-modal-title">
-        <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl relative">
-            <h3 id="add-project-modal-title" class="text-2xl font-bold text-gray-900 mb-6">Add New Project</h3>
-            <button class="absolute top-4 right-4 text-gray-500 hover:text-gray-700 text-2xl" id="cancel-add-project" aria-label="Close add project form">&times;</button>
-            <form id="project-form" class="space-y-4">
-                <div>
-                    <label for="project-title" class="block text-sm font-medium text-gray-700 mb-2">Project Title</label>
-                    <input type="text" id="project-title" name="project-title" required class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                </div>
-                <div>
-                    <label for="project-description" class="block text-sm font-medium text-gray-700 mb-2">Description</label>
-                    <textarea id="project-description" name="project-description" rows="4" required class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"></textarea>
-                </div>
-                <div>
-                    <label for="project-image" class="block text-sm font-medium text-gray-700 mb-2">Project Image</label>
-                    <input type="file" id="project-image" name="project-image" accept="image/*" required class="w-full text-gray-700 border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                </div>
-                <div class="flex justify-end space-x-3 mt-6">
-                    <button type="button" class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-5 py-2 rounded-lg font-medium transition-colors" id="cancel-add-project-form" aria-label="Cancel adding project">
-                        Cancel
-                    </button>
-                    <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg font-medium flex items-center disabled:opacity-50 disabled:cursor-not-allowed transition-colors" id="save-project-btn" aria-label="Save project">
-                        <span id="save-project-btn-text">Save Project</span>
-                        <span id="save-project-spinner" class="spinner ml-2 hidden" role="status" aria-label="Saving project"></span>
-                    </button>
-                </div>
-            </form>
+            <p class="text-slate-500" id="user-display"></p>
+          </div>
         </div>
-    </div>
+        <button id="main-logout-btn" class="px-5 py-2 rounded-full bg-white text-slate-900 font-semibold border border-slate-300 shadow-sm hover:bg-slate-50 transition" data-i18n="buttons.logout">Logout</button>
+      </header>
 
+      <div class="bg-white rounded-2xl border border-slate-200 p-2 flex flex-wrap gap-2" role="tablist">
+        <button class="tab-btn active flex-1 rounded-xl px-4 py-2 font-semibold" data-tab="live-editor" id="live-editor-tab-btn" role="tab" aria-selected="true" aria-controls="live-editor-tab" tabindex="0" data-i18n="tabs.liveEditor">Live Editor</button>
+        <button class="tab-btn flex-1 rounded-xl px-4 py-2 font-semibold" data-tab="project-management" id="projects-tab-btn" role="tab" aria-selected="false" aria-controls="project-management-tab" tabindex="-1" data-i18n="tabs.projects">Projects</button>
+        <button class="tab-btn flex-1 rounded-xl px-4 py-2 font-semibold relative" data-tab="messages" id="messages-tab-btn" role="tab" aria-selected="false" aria-controls="messages-tab" tabindex="-1">
+          <span class="flex items-center justify-center gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8m-18 8V8a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
+            </svg>
+            <span data-i18n="tabs.messages">Messages</span>
+          </span>
+          <span id="messages-unread-badge" class="absolute -top-1 -right-1 inline-flex items-center justify-center w-4 h-4 rounded-full text-[10px] font-semibold text-white bg-red-600 hidden shadow-sm"></span>
+        </button>
+      </div>
 
-    <!-- Edit Text Modal (for Content Editor) -->
-    <div id="edit-text-modal-overlay" class="edit-modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="edit-text-modal-title">
-        <div id="edit-text-modal-content" class="edit-modal-content">
-            <button class="edit-modal-close-btn" id="edit-modal-close-btn" aria-label="Close text editor">&times;</button>
-            <h3 class="text-xl font-bold text-gray-800 mb-4" id="edit-text-modal-title">Edit Content</h3>
-            <label for="edit-text-area" class="sr-only">New Text:</label>
-            <textarea id="edit-text-area" class="edit-modal-textarea" aria-label="New text content"></textarea>
-            <div class="flex justify-end space-x-3">
-                <button id="edit-modal-cancel-btn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-5 py-2 rounded-lg font-medium transition-colors" aria-label="Cancel text edit">
-                    Cancel
-                </button>
-                <button id="edit-modal-save-btn" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg font-medium flex items-center disabled:opacity-50 disabled:cursor-not-allowed transition-colors" aria-label="Save text edit">
-                    <span id="edit-modal-save-text">Save</span>
-                    <span id="edit-modal-spinner" class="spinner ml-2 hidden" role="status" aria-label="Saving edit"></span>
-                </button>
+      <div id="live-editor-tab" class="tab-content" role="tabpanel" aria-labelledby="live-editor-tab-btn">
+        <div class="space-y-6">
+          <section class="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
+            <div class="flex flex-wrap items-center gap-4">
+              <div class="flex-1 min-w-[220px]">
+                <p class="text-xs uppercase tracking-wide text-orange-600 font-semibold" data-i18n="liveEditor.quickActionsBadge">Quick actions</p>
+                <h2 class="text-xl font-semibold mt-1" data-i18n="liveEditor.quickActionsTitle">Live Website Editor</h2>
+                <p class="text-sm text-slate-500" data-i18n="liveEditor.quickActionsDescription">Reload preview, reset to defaults, or manage presets.</p>
+              </div>
+              <div class="flex flex-wrap gap-3">
+                <button id="reload-site-button" class="bg-slate-900 text-white px-4 py-2 rounded-xl font-semibold hover:opacity-90 transition" data-i18n="buttons.reloadPreview">Reload Preview</button>
+                <button id="reset-site-button" class="bg-red-600 text-white px-4 py-2 rounded-xl font-semibold hover:bg-red-700 transition" data-i18n="buttons.resetDefaults">Reset To Default</button>
+                <button id="open-presets-button" class="bg-blue-600 text-white px-4 py-2 rounded-xl font-semibold hover:bg-blue-700 transition" data-i18n="buttons.managePresets">Manage Presets</button>
+              </div>
             </div>
-        </div>
-    </div>
+            <p class="text-xs text-slate-500" data-i18n="liveEditor.resetWarning">Reset replaces all editable text, colors, media, and layout overrides with the default template. Save a preset first if you want to keep the current layout.</p>
+          </section>
 
-    <!-- Firebase SDKs -->
-    <script type="module" src="./src/firebase.js"></script>
-    <script type="module" src="./src/main.js"></script> <!-- Contains shared functions like addProjectToFirebase -->
-    <script type="module" src="./src/auth-utils.js"></script> <!-- MUST BE LOADED BEFORE admin-dashboard.js or admin-index-editor.js -->
-    <script type="module" src="./src/ui-utils.js"></script> <!-- MUST BE LOADED BEFORE admin-dashboard.js or admin-index-editor.js -->
-    <script type="module" src="./src/admin-dashboard.js"></script>
-    <script type="module" src="./src/admin-index-editor.js"></script>
+          <div class="relative w-full h-[calc(100vh-260px)] rounded-3xl border border-slate-200 overflow-hidden bg-slate-100">
+            <iframe id="live-editor-iframe" src="index.html" class="w-full h-full border-none"></iframe>
+            <div id="live-editor-loading" class="absolute inset-0 bg-white/90 backdrop-blur flex items-center justify-center flex-col gap-3">
+              <span class="spinner text-orange-600"></span>
+              <p class="text-slate-500" data-i18n="liveEditor.loading">Loading live editor…</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="project-management-tab" class="tab-content hidden" role="tabpanel" aria-labelledby="projects-tab-btn">
+        <div class="grid lg:grid-cols-[360px_1fr] gap-6">
+          <form id="add-project-form" class="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
+            <div>
+              <h3 class="text-xl font-semibold" data-i18n="projects.formTitle">Add new project</h3>
+              <p class="text-sm text-slate-500" data-i18n="projects.formDescription">Create a portfolio entry and upload images.</p>
+            </div>
+            <div class="space-y-3">
+              <input type="text" id="project-title" placeholder="Project title" required class="w-full p-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-500" data-i18n-placeholder="projects.titlePlaceholder" />
+              <textarea id="project-description" placeholder="Project description" rows="4" required class="w-full p-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-500 resize-none" data-i18n-placeholder="projects.descriptionPlaceholder"></textarea>
+              <label class="block text-sm font-semibold text-slate-600" data-i18n="projects.imageLabel">Įkelkite projekto nuotraukas</label>
+              <div class="flex items-center gap-3">
+                <label for="project-image" class="inline-flex items-center justify-center bg-white border border-slate-300 text-slate-900 rounded-xl px-4 py-2 font-semibold cursor-pointer hover:bg-slate-50 transition">Pasirinkti failus</label>
+                <span id="project-image-filename" class="text-sm text-slate-500">Failai nepasirinkti</span>
+              </div>
+              <input type="file" id="project-image" accept="image/*" multiple class="hidden" />
+              <div id="image-preview-container" class="flex flex-wrap gap-2"></div>
+              <div id="existing-project-images" class="space-y-2 hidden">
+                <div class="flex items-center justify-between">
+                  <p class="text-sm font-semibold text-slate-600">Esamos nuotraukos</p>
+                  <span class="text-xs text-slate-500">Šalinti / grąžinti galima po vieną nuotrauką.</span>
+                </div>
+                <p id="existing-project-images-empty" class="text-sm text-slate-500 hidden">Šis projektas neturi įkeltų nuotraukų.</p>
+                <div id="existing-project-images-container" class="flex flex-wrap gap-2"></div>
+                <p class="text-xs text-slate-500 text-right" id="existing-project-images-hint">Pašalintos nuotraukos bus ištrintos tik išsaugojus projektą.</p>
+              </div>
+            </div>
+            <button type="submit" id="add-project-btn" class="w-full bg-slate-900 text-white rounded-xl py-3 font-semibold flex items-center justify-center gap-2">
+              <span id="add-project-btn-text" data-i18n="projects.submit">Publish project</span>
+              <span id="add-project-spinner" class="spinner hidden"></span>
+            </button>
+            <p id="add-project-error" class="text-sm text-red-600 hidden"></p>
+          </form>
+
+          <div class="bg-white rounded-2xl border border-slate-200 p-6">
+            <div class="flex items-center justify-between mb-4">
+              <div>
+                <h3 class="text-lg font-semibold" data-i18n="projects.listTitle">Existing projects</h3>
+                <p class="text-sm text-slate-500" data-i18n="projects.listDescription">Click a card to view or delete.</p>
+              </div>
+              <span class="text-xs text-slate-400" id="loading-projects" data-i18n="status.loading">Loading…</span>
+            </div>
+            <div id="projects-error" class="text-sm text-red-600 hidden" data-i18n="projects.error">Failed to load projects.</div>
+            <div id="projects-list" class="space-y-4"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="messages-tab" class="tab-content hidden" role="tabpanel" aria-labelledby="messages-tab-btn">
+        <div class="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <h3 class="text-xl font-semibold" data-i18n="messages.title">Newest messages</h3>
+              <p class="text-sm text-slate-500" data-i18n="messages.description">Respond directly from your mail client.</p>
+            </div>
+            <span class="text-xs text-slate-400" id="loading-messages" data-i18n="status.loading">Loading…</span>
+          </div>
+          <div id="messages-error" class="text-sm text-red-600 hidden" data-i18n="messages.error">Failed to load messages.</div>
+          <div id="messages-list" class="space-y-3"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="message-detail-modal-overlay" class="fixed inset-0 bg-black/60 z-50 hidden items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="message-detail-title">
+    <div id="message-detail-modal" class="bg-white rounded-3xl w-full max-w-2xl p-6 space-y-6 shadow-2xl">
+      <div class="flex items-start justify-between gap-4">
+        <div class="space-y-1">
+          <p class="text-sm uppercase tracking-wide text-orange-600 font-semibold" data-i18n="messageModal.badge">Message details</p>
+          <h3 id="message-detail-title" class="text-2xl font-bold">Message title</h3>
+          <p id="message-detail-date" class="text-sm text-slate-500">Received just now</p>
+        </div>
+        <button id="message-detail-close-btn" class="p-2 rounded-full hover:bg-slate-100 transition" aria-label="Close message details" data-i18n-aria-label="messageModal.closeAria">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      <div class="grid gap-4 md:grid-cols-2">
+        <div>
+          <p class="text-xs uppercase tracking-wide text-slate-400 font-semibold" data-i18n="messageModal.senderLabel">Sender</p>
+          <p id="message-detail-name" class="text-lg font-semibold text-slate-900">—</p>
+        </div>
+        <div>
+          <p class="text-xs uppercase tracking-wide text-slate-400 font-semibold" data-i18n="messageModal.emailLabel">Email</p>
+          <a id="message-detail-email" href="#" class="text-sm font-semibold text-blue-600 break-all" target="_blank" rel="noreferrer noopener">—</a>
+        </div>
+        <div>
+          <p class="text-xs uppercase tracking-wide text-slate-400 font-semibold" data-i18n="messageModal.phoneLabel">Phone</p>
+          <p id="message-detail-phone" class="text-sm text-slate-600">—</p>
+        </div>
+      </div>
+      <div class="space-y-2">
+        <p class="text-xs uppercase tracking-wide text-slate-400 font-semibold" data-i18n="messageModal.messageLabel">Message</p>
+        <p id="message-detail-body" class="text-base text-slate-700 whitespace-pre-wrap bg-slate-50 rounded-2xl p-4 min-h-[120px]">—</p>
+      </div>
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <button id="message-detail-delete-btn" class="px-5 py-2 rounded-full bg-red-600 text-white font-semibold hover:bg-red-700 transition" data-i18n="buttons.delete">Delete</button>
+        <button id="message-detail-reply-btn" class="px-5 py-2 rounded-full bg-blue-600 text-white font-semibold hover:bg-blue-700 transition" data-i18n="buttons.reply">Reply</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="live-editor-edit-modal-overlay" class="fixed inset-0 bg-black/60 z-50 hidden p-4" role="dialog" aria-modal="true" aria-labelledby="live-editor-edit-modal-title">
+    <div id="live-editor-edit-modal" class="live-editor-modal bg-white rounded-2xl w-full max-w-2xl p-6 space-y-5 border-2 border-slate-900 shadow-2xl">
+      <div class="flex items-start justify-between" id="live-editor-edit-modal-header">
+        <div>
+          <p class="text-sm uppercase tracking-wide text-orange-600 font-semibold" data-i18n="editModal.badge">Edit element</p>
+          <h3 id="live-editor-edit-modal-title" class="text-2xl font-bold" data-i18n="editModal.title">Edit Element</h3>
+        </div>
+        <button id="live-editor-edit-modal-close-btn" class="p-2 rounded-full hover:bg-slate-100" aria-label="Close edit modal" data-i18n-aria-label="editModal.closeAria">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      <div class="space-y-5">
+        <div id="edit-text-section" class="space-y-2 hidden">
+          <label for="edit-live-text-area" class="text-sm font-semibold" data-i18n="editModal.textContentLabel">Text content</label>
+          <textarea id="edit-live-text-area" class="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-orange-500 resize-none" rows="4"></textarea>
+        </div>
+        <div id="edit-text-color-section" class="space-y-2 hidden">
+          <label class="text-sm font-semibold" data-i18n="editModal.textColorLabel">Text color</label>
+          <div class="flex items-center gap-3">
+            <input type="color" id="edit-live-text-color-picker" class="w-12 h-12 rounded-xl border border-slate-200" />
+            <input type="text" id="edit-live-text-color-hex" class="flex-1 p-3 border border-slate-200 rounded-xl" placeholder="#000000" />
+          </div>
+        </div>
+        <div id="edit-text-outline-section" class="space-y-2 hidden">
+          <div class="flex items-center justify-between">
+            <span class="text-sm font-semibold" data-i18n="editModal.textOutlineLabel">Text outline</span>
+            <label class="inline-flex items-center gap-2 text-sm">
+              <input type="checkbox" id="edit-text-outline-toggle" class="w-4 h-4 rounded border border-slate-300" />
+              <span data-i18n="editModal.textOutlineToggle">Enable outline</span>
+            </label>
+          </div>
+          <div class="flex items-center gap-3" id="edit-text-outline-color-row">
+            <input type="color" id="edit-text-outline-color-picker" class="w-12 h-12 rounded-xl border border-slate-200" />
+            <input type="text" id="edit-text-outline-color-hex" class="flex-1 p-3 border border-slate-200 rounded-xl" placeholder="#000000" />
+          </div>
+          <div class="flex items-center gap-3" id="edit-text-outline-thickness-row">
+            <label for="edit-text-outline-width" class="text-sm font-semibold" data-i18n="editModal.textOutlineWidthLabel">Thickness</label>
+            <input type="range" id="edit-text-outline-width" min="0" max="4" step="0.5" class="flex-1" />
+            <span id="edit-text-outline-width-value" class="text-sm w-10 text-right">1px</span>
+          </div>
+        </div>
+        <div id="edit-link-section" class="space-y-2 hidden">
+          <label class="text-sm font-semibold" data-i18n="editModal.linkLabel">Link URL</label>
+          <input type="url" id="edit-link-input" class="w-full p-3 border border-slate-200 rounded-xl" placeholder="https://example.com" data-i18n-placeholder="editModal.linkPlaceholder" />
+        </div>
+        <div id="edit-color-section" class="space-y-2 hidden">
+          <label class="text-sm font-semibold" data-i18n="editModal.backgroundColorLabel">Background color</label>
+          <div class="flex items-center gap-3">
+            <input type="color" id="edit-live-color-picker" class="w-12 h-12 rounded-xl border border-slate-200" />
+            <input type="text" id="edit-live-color-hex" class="flex-1 p-3 border border-slate-200 rounded-xl" placeholder="#ffffff" />
+          </div>
+        </div>
+        <div id="edit-background-section" class="space-y-3 hidden">
+          <label class="text-sm font-semibold" data-i18n="editModal.backgroundTypeLabel">Background type</label>
+          <div class="flex gap-4 text-sm">
+            <label class="flex items-center gap-2"><input type="radio" name="background-type" id="background-type-gradient" value="gradient" checked /> <span data-i18n="editModal.gradientOption">Gradient</span></label>
+            <label class="flex items-center gap-2"><input type="radio" name="background-type" id="background-type-image" value="image" /> <span data-i18n="editModal.imageOption">Image</span></label>
+          </div>
+          <div id="edit-gradient-section" class="grid gap-3 md:grid-cols-2 hidden">
+            <div class="space-y-2">
+              <label class="text-sm font-semibold" data-i18n="editModal.color1Label">Color 1</label>
+              <input type="color" id="edit-live-gradient-color1" class="w-full h-12 rounded-xl border border-slate-200" />
+              <input type="text" id="edit-live-gradient-hex1" class="w-full p-3 border border-slate-200 rounded-xl" placeholder="#F97316" />
+            </div>
+            <div class="space-y-2">
+              <label class="text-sm font-semibold" data-i18n="editModal.color2Label">Color 2</label>
+              <input type="color" id="edit-live-gradient-color2" class="w-full h-12 rounded-xl border border-slate-200" />
+              <input type="text" id="edit-live-gradient-hex2" class="w-full p-3 border border-slate-200 rounded-xl" placeholder="#EF4444" />
+            </div>
+            <div class="md:col-span-2 space-y-2">
+              <label class="text-sm font-semibold" data-i18n="editModal.directionLabel">Direction</label>
+              <select id="edit-live-gradient-direction" class="w-full p-3 border border-slate-200 rounded-xl">
+                <option value="90deg" data-i18n="editModal.directionHorizontal">Left → Right</option>
+                <option value="180deg" data-i18n="editModal.directionVertical">Top → Bottom</option>
+                <option value="45deg" data-i18n="editModal.directionDiagonal">Diagonal</option>
+              </select>
+            </div>
+          </div>
+          <div id="edit-image-section" class="space-y-3 hidden">
+            <input type="text" id="edit-live-image-url" class="w-full p-3 border border-slate-200 rounded-xl" placeholder="Image URL" data-i18n-placeholder="editModal.imageUrlPlaceholder" />
+            <input type="file" id="edit-live-image-upload" accept="image/*" class="w-full" />
+            <img id="edit-live-image-preview" class="w-full rounded-xl hidden" alt="Image preview" data-i18n-alt="editModal.imagePreviewAlt" />
+          </div>
+        </div>
+      </div>
+      <div class="flex justify-end gap-3">
+        <button id="live-editor-edit-modal-cancel-btn" class="px-4 py-2 rounded-xl border border-slate-200" data-i18n="buttons.cancel">Cancel</button>
+        <button id="live-editor-edit-modal-save-btn" class="px-5 py-2 rounded-xl bg-blue-600 text-white font-semibold flex items-center gap-2 hover:bg-blue-700 transition">
+          <span id="live-editor-edit-modal-save-text" data-i18n="buttons.save">Save</span>
+          <span id="live-editor-edit-modal-spinner" class="spinner hidden" role="status" aria-label="Saving edit" data-i18n-aria-label="editModal.savingAria"></span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="preset-manager-modal" class="fixed inset-0 bg-black/60 z-50 hidden items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="preset-manager-title">
+    <div class="bg-white rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-y-auto p-6 space-y-4">
+      <div class="flex items-start justify-between">
+        <div>
+          <p class="text-sm uppercase tracking-wide text-orange-600 font-semibold" data-i18n="presets.badge">Layouts</p>
+          <h3 id="preset-manager-title" class="text-2xl font-bold" data-i18n="presets.title">Manage Presets</h3>
+          <p class="text-sm text-slate-500" data-i18n="presets.description">Save up to five layouts and switch between them instantly.</p>
+        </div>
+        <button id="close-presets-button" class="p-2 rounded-full hover:bg-slate-100" aria-label="Close preset manager" data-i18n-aria-label="presets.closeAria">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      <div class="flex items-center justify-between">
+        <p class="text-sm text-slate-500" data-i18n="presets.info">Each slot stores text, colors, media, and layout overrides.</p>
+        <button id="refresh-presets-button" class="text-sm font-semibold text-blue-600" data-i18n="buttons.refresh">Refresh</button>
+      </div>
+      <div id="preset-card-container" class="grid gap-4 md:grid-cols-2">
+        <div class="p-4 rounded-2xl border border-slate-200 bg-slate-50 space-y-2" data-preset-slot="1">
+          <div class="flex items-center justify-between">
+            <p class="font-semibold" data-i18n="presets.slot1">Preset 1</p>
+            <span class="text-xs text-slate-500" data-preset-status data-i18n="presets.emptyStatus">Empty</span>
+          </div>
+          <input type="text" class="w-full p-3 rounded-xl border border-slate-200" placeholder="Preset name" data-preset-name-input data-i18n-placeholder="presets.namePlaceholder" />
+          <div class="flex items-center gap-2">
+            <button class="flex-1 bg-blue-600 text-white rounded-xl py-2 font-semibold" data-preset-save data-i18n="buttons.save">Save</button>
+            <button class="flex-1 bg-white border border-blue-600 text-blue-600 rounded-xl py-2 font-semibold disabled:opacity-40" data-preset-load disabled data-i18n="buttons.load">Load</button>
+            <button class="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 disabled:opacity-40" data-preset-delete disabled data-i18n="buttons.delete">Delete</button>
+          </div>
+          <p class="text-xs text-slate-500" data-preset-meta data-i18n="presets.neverSaved">Never saved</p>
+        </div>
+        <div class="p-4 rounded-2xl border border-slate-200 bg-slate-50 space-y-2" data-preset-slot="2">
+          <div class="flex items-center justify-between">
+            <p class="font-semibold" data-i18n="presets.slot2">Preset 2</p>
+            <span class="text-xs text-slate-500" data-preset-status data-i18n="presets.emptyStatus">Empty</span>
+          </div>
+          <input type="text" class="w-full p-3 rounded-xl border border-slate-200" placeholder="Preset name" data-preset-name-input data-i18n-placeholder="presets.namePlaceholder" />
+          <div class="flex items-center gap-2">
+            <button class="flex-1 bg-blue-600 text-white rounded-xl py-2 font-semibold" data-preset-save data-i18n="buttons.save">Save</button>
+            <button class="flex-1 bg-white border border-blue-600 text-blue-600 rounded-xl py-2 font-semibold disabled:opacity-40" data-preset-load disabled data-i18n="buttons.load">Load</button>
+            <button class="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 disabled:opacity-40" data-preset-delete disabled data-i18n="buttons.delete">Delete</button>
+          </div>
+          <p class="text-xs text-slate-500" data-preset-meta data-i18n="presets.neverSaved">Never saved</p>
+        </div>
+        <div class="p-4 rounded-2xl border border-slate-200 bg-slate-50 space-y-2" data-preset-slot="3">
+          <div class="flex items-center justify-between">
+            <p class="font-semibold" data-i18n="presets.slot3">Preset 3</p>
+            <span class="text-xs text-slate-500" data-preset-status data-i18n="presets.emptyStatus">Empty</span>
+          </div>
+            <input type="text" class="w-full p-3 rounded-xl border border-slate-200" placeholder="Preset name" data-preset-name-input data-i18n-placeholder="presets.namePlaceholder" />
+            <div class="flex items-center gap-2">
+              <button class="flex-1 bg-blue-600 text-white rounded-xl py-2 font-semibold" data-preset-save data-i18n="buttons.save">Save</button>
+              <button class="flex-1 bg-white border border-blue-600 text-blue-600 rounded-xl py-2 font-semibold disabled:opacity-40" data-preset-load disabled data-i18n="buttons.load">Load</button>
+              <button class="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 disabled:opacity-40" data-preset-delete disabled data-i18n="buttons.delete">Delete</button>
+            </div>
+            <p class="text-xs text-slate-500" data-preset-meta data-i18n="presets.neverSaved">Never saved</p>
+        </div>
+        <div class="p-4 rounded-2xl border border-slate-200 bg-slate-50 space-y-2" data-preset-slot="4">
+          <div class="flex items-center justify-between">
+            <p class="font-semibold" data-i18n="presets.slot4">Preset 4</p>
+            <span class="text-xs text-slate-500" data-preset-status data-i18n="presets.emptyStatus">Empty</span>
+          </div>
+          <input type="text" class="w-full p-3 rounded-xl border border-slate-200" placeholder="Preset name" data-preset-name-input data-i18n-placeholder="presets.namePlaceholder" />
+          <div class="flex items-center gap-2">
+            <button class="flex-1 bg-blue-600 text-white rounded-xl py-2 font-semibold" data-preset-save data-i18n="buttons.save">Save</button>
+            <button class="flex-1 bg-white border border-blue-600 text-blue-600 rounded-xl py-2 font-semibold disabled:opacity-40" data-preset-load disabled data-i18n="buttons.load">Load</button>
+            <button class="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 disabled:opacity-40" data-preset-delete disabled data-i18n="buttons.delete">Delete</button>
+          </div>
+          <p class="text-xs text-slate-500" data-preset-meta data-i18n="presets.neverSaved">Never saved</p>
+        </div>
+        <div class="p-4 rounded-2xl border border-slate-200 bg-slate-50 space-y-2" data-preset-slot="5">
+          <div class="flex items-center justify-between">
+            <p class="font-semibold" data-i18n="presets.slot5">Preset 5</p>
+            <span class="text-xs text-slate-500" data-preset-status data-i18n="presets.emptyStatus">Empty</span>
+          </div>
+          <input type="text" class="w-full p-3 rounded-xl border border-slate-200" placeholder="Preset name" data-preset-name-input data-i18n-placeholder="presets.namePlaceholder" />
+          <div class="flex items-center gap-2">
+            <button class="flex-1 bg-blue-600 text-white rounded-xl py-2 font-semibold" data-preset-save data-i18n="buttons.save">Save</button>
+            <button class="flex-1 bg-white border border-blue-600 text-blue-600 rounded-xl py-2 font-semibold disabled:opacity-40" data-preset-load disabled data-i18n="buttons.load">Load</button>
+            <button class="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 disabled:opacity-40" data-preset-delete disabled data-i18n="buttons.delete">Delete</button>
+          </div>
+          <p class="text-xs text-slate-500" data-preset-meta data-i18n="presets.neverSaved">Never saved</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="./src/firebase.js"></script>
+  <script type="module" src="./src/main.js"></script>
+  <script type="module" src="./src/ui-utils.js"></script>
+  <script type="module" src="./src/admin-dashboard.js"></script>
+  <script type="module" src="./src/admin-live-editor.js"></script>
 </body>
 </html>

@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title id="project-detail-title-tag">Projektas - Statyba</title>
+  <link rel="icon" href="https://placehold.co/16x16/000000/FFFFFF/png?text=EB" type="image/png" />
+  <link rel="stylesheet" href="./assets/tailwind.css" />
+  <link rel="stylesheet" href="./src/style.css" />
+</head>
+<body class="bg-slate-50 text-slate-900">
+  <div id="project-page-loader" class="page-loader-overlay">
+    <div class="page-loader-card">
+      <span class="spinner text-orange-600" aria-hidden="true"></span>
+      <div>
+        <p class="page-loader-label">Krauname projektą...</p>
+        <p class="page-loader-subtext">Prašome palaukti, kol paruošime nuotraukas.</p>
+      </div>
+    </div>
+  </div>
+
+  <header class="fixed top-0 left-0 w-full bg-white border-b border-slate-200 shadow-sm z-40">
+    <nav class="page-container flex flex-wrap items-center justify-between gap-4 py-4">
+      <a href="index.html#home" class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-2xl bg-gradient-to-r from-orange-600 to-red-600 flex items-center justify-center editable-element" data-editable-gradient-id="logo-s-bg-gradient">
+          <span class="text-white text-xl font-bold editable-element" data-editable-text-id="logo-s-text" data-editable-color-id="logo-s-color">EB</span>
+        </div>
+        <p class="text-xl font-bold gradient-text">Statyba</p>
+      </a>
+      <div class="flex flex-wrap items-center gap-6 text-sm font-semibold text-slate-700">
+        <ul class="flex flex-wrap items-center gap-6">
+          <li><a href="index.html#home" class="hover:text-orange-600 transition">Pagrindinis</a></li>
+          <li><a href="index.html#about" class="hover:text-orange-600 transition">Apie mus</a></li>
+          <li><a href="index.html#portfolio" class="hover:text-orange-600 transition">Projektai</a></li>
+          <li><a href="index.html#contact" class="hover:text-orange-600 transition">Susisiekite</a></li>
+        </ul>
+        <a href="projects/" class="bg-white text-slate-900 border border-slate-200 px-6 py-2 rounded-full font-semibold hover:bg-slate-50 transition">
+          ← Grįžti į projektus
+        </a>
+      </div>
+    </nav>
+  </header>
+
+  <main class="pt-28 pb-16">
+    <div id="project-detail-content" class="page-container space-y-10">
+      <div id="project-loading" class="flex flex-col items-center justify-center py-20 text-slate-500 gap-3">
+        <span class="spinner"></span>
+        <span>Krauname projekto informaciją...</span>
+      </div>
+
+      <div id="project-error" class="hidden text-center bg-white rounded-3xl shadow-lg p-10">
+        <h2 class="text-3xl font-bold text-red-600 mb-4">Projektas nerastas</h2>
+        <p class="text-lg text-slate-600">Projektas galėjo būti pašalintas arba nuoroda neteisinga.</p>
+      </div>
+
+      <div id="project-display" class="hidden space-y-10">
+        <div class="space-y-3">
+          <p class="text-sm uppercase tracking-wide text-orange-600 font-semibold">Projektas</p>
+          <h1 id="project-title" class="text-4xl md:text-5xl font-bold"></h1>
+        </div>
+
+        <div class="grid gap-8 lg:grid-cols-[2fr_1fr]">
+          <div class="space-y-6">
+            <button type="button" id="project-hero-trigger" class="project-hero-button aspect-video" aria-label="Peržiūrėti pagrindinę nuotrauką dideliame lange">
+              <img id="project-hero-image" src="https://placehold.co/1200x800?text=Projektas" alt="" loading="eager" />
+              <span class="project-hero-zoom-indicator">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2h-4" />
+                  <path d="M9 21H5a2 2 0 0 1-2-2v-4" />
+                  <path d="M3 9V5a2 2 0 0 1 2-2h4" />
+                  <path d="M15 3h4a2 2 0 0 1 2 2v4" />
+                </svg>
+                Priartinti
+              </span>
+            </button>
+            <div id="project-gallery" class="project-gallery-grid"></div>
+          </div>
+          <div class="bg-white rounded-3xl shadow-lg p-8 space-y-4">
+            <h3 class="text-xl font-semibold text-slate-900">Apie projektą</h3>
+            <p id="project-description" class="text-slate-600 leading-relaxed"></p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script type="module" src="./src/firebase.js"></script>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

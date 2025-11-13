@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Projektai - Statyba</title>
+  <link rel="icon" href="https://placehold.co/16x16/000000/FFFFFF/png?text=EB" type="image/png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../assets/tailwind.css" />
+  <link rel="stylesheet" href="../src/style.css" />
+</head>
+<body class="bg-slate-50 text-slate-900">
+  <header class="fixed top-0 left-0 w-full bg-white border-b border-slate-200 shadow-sm z-50">
+    <nav class="page-container flex flex-wrap items-center justify-between gap-4 py-4">
+      <a href="../index.html#home" class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-2xl bg-gradient-to-r from-orange-600 to-red-600 flex items-center justify-center editable-element" data-editable-gradient-id="logo-s-bg-gradient">
+          <span class="text-white text-xl font-bold editable-element" data-editable-text-id="logo-s-text" data-editable-color-id="logo-s-color">EB</span>
+        </div>
+        <p class="text-xl font-bold gradient-text">Statyba</p>
+      </a>
+      <div class="flex flex-wrap items-center gap-6 text-sm font-semibold text-slate-700">
+        <ul class="flex flex-wrap items-center gap-6">
+          <li><a href="../index.html#home" class="hover:text-orange-600 transition">Pagrindinis</a></li>
+          <li><a href="../index.html#about" class="hover:text-orange-600 transition">Apie mus</a></li>
+          <li><a href="../index.html#portfolio" class="hover:text-orange-600 transition">Projektai</a></li>
+        </ul>
+        <a href="../index.html#contact" class="bg-white text-slate-900 border border-slate-200 px-6 py-2 rounded-full font-semibold hover:bg-slate-50 transition">
+          Susisiekite
+        </a>
+      </div>
+    </nav>
+  </header>
+
+  <main class="pt-28 pb-20 space-y-16">
+    <section class="text-center space-y-4 px-6">
+      <p class="text-sm uppercase tracking-wide text-orange-600 font-semibold">Mūsų darbai</p>
+      <h1 class="text-4xl md:text-5xl font-bold text-slate-900">Visi projektai</h1>
+      <p class="text-lg text-slate-600 max-w-2xl mx-auto">
+        Kruopščiai atrinkti statybų projektai, parodantys mūsų komandos patirtį, medžiagas ir ilgaamžiškumą.
+      </p>
+    </section>
+
+    <section class="page-container">
+      <div id="projects-list-loading" class="flex items-center justify-center gap-3 text-slate-500">
+        <span class="spinner"></span>
+        <span>Krauname projektus...</span>
+      </div>
+      <div id="projects-list-error" class="hidden text-center text-red-500 font-semibold">Nepavyko įkelti projektų. Bandykite dar kartą.</div>
+      <div id="projects-list-empty" class="hidden text-center text-slate-500">Projektų kol kas nėra.</div>
+      <div id="projects-list" class="grid gap-8 md:grid-cols-2 lg:grid-cols-3 hidden"></div>
+    </section>
+  </main>
+
+  <script type="module" src="../src/firebase.js"></script>
+  <script type="module" src="../src/main.js"></script>
+</body>
+</html>

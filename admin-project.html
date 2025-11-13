@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Projektas - Statyba</title>
+  <link rel="icon" href="https://placehold.co/16x16/000000/FFFFFF/png?text=EB" type="image/png" />
+  <link rel="stylesheet" href="./assets/tailwind.css" />
+  <link rel="stylesheet" href="./src/style.css" />
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen">
+  <div id="admin-project-page-loader" class="page-loader-overlay hidden">
+    <div class="page-loader-card">
+      <span class="spinner text-orange-600" aria-hidden="true"></span>
+      <div>
+        <p class="page-loader-label">Krauname nuotraukas...</p>
+        <p class="page-loader-subtext">Prašome palaukti, kol paruošime peržiūrą.</p>
+      </div>
+    </div>
+  </div>
+
+  <header class="bg-white border-b border-slate-200 shadow-sm">
+    <nav class="page-container flex flex-wrap items-center justify-between gap-4 py-4">
+      <a href="index.html#home" class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-2xl bg-gradient-to-r from-orange-600 to-red-600 flex items-center justify-center editable-element" data-editable-gradient-id="logo-s-bg-gradient">
+          <span class="text-white text-xl font-bold editable-element" data-editable-text-id="logo-s-text" data-editable-color-id="logo-s-color">EB</span>
+        </div>
+        <p class="text-xl font-bold gradient-text">Statyba</p>
+      </a>
+      <div class="flex flex-wrap items-center gap-6 text-sm font-semibold text-slate-700">
+        <ul class="flex flex-wrap items-center gap-6">
+          <li><a href="index.html#home" class="hover:text-orange-600 transition">Pagrindinis</a></li>
+          <li><a href="index.html#about" class="hover:text-orange-600 transition">Apie mus</a></li>
+          <li><a href="index.html#portfolio" class="hover:text-orange-600 transition">Projektai</a></li>
+          <li><a href="index.html#contact" class="hover:text-orange-600 transition">Susisiekite</a></li>
+        </ul>
+        <a href="admin.html#project-management-tab" class="bg-white text-slate-900 border border-slate-200 px-6 py-2 rounded-full font-semibold hover:bg-slate-50 transition">
+          ← Atgal į administratorių
+        </a>
+      </div>
+    </nav>
+  </header>
+
+  <main class="page-container py-10 space-y-8">
+    <section id="admin-project-login" class="max-w-xl mx-auto bg-white rounded-3xl shadow-2xl p-8 space-y-6 hidden">
+      <div class="text-center space-y-3">
+        <p class="text-sm uppercase tracking-wide text-orange-600 font-semibold">Administratoriaus prieiga</p>
+        <h1 class="text-3xl font-bold">Prisijunkite, kad tęstumėte</h1>
+      </div>
+      <div class="space-y-3">
+        <button id="admin-project-google-btn" class="w-full flex items-center justify-center gap-3 bg-white text-slate-900 border border-slate-200 font-semibold py-3 rounded-2xl shadow-lg hover:shadow-xl transition">
+          <svg class="w-5 h-5" viewBox="0 0 533.5 544.3" aria-hidden="true">
+            <path fill="#4285f4" d="M533.5 278.4c0-17.4-1.6-34.1-4.7-50.2H272v95h146.9c-6.3 34-25 62.8-53.3 82v68h86.2c50.5-46.6 81.7-115.4 81.7-194.8z"/>
+            <path fill="#34a853" d="M272 544.3c72.5 0 133.3-24 177.7-65.1l-86.2-68c-23.9 16.1-54.6 25.5-91.5 25.5-70.3 0-129.9-47.5-151.2-111.2h-89v69.9C75.4 482.1 167.7 544.3 272 544.3z"/>
+            <path fill="#fbbc05" d="M120.8 325.5c-10.3-30.9-10.3-64.1 0-95l-89-69.9C4.4 210 0 239.4 0 272.2s4.4 62.1 31.8 111.6l89-69.9z"/>
+            <path fill="#ea4335" d="M272 107.7c39.5 0 75 13.6 103 40.3l77.2-77.2C405.1 24 344.3 0 272 0 167.7 0 75.4 62.2 31.8 160.6l89 69.9C142.1 155.2 201.7 107.7 272 107.7z"/>
+          </svg>
+          <span id="admin-project-google-text">Prisijungti per Google</span>
+          <span id="admin-project-google-spinner" class="spinner hidden"></span>
+        </button>
+        <p id="admin-project-login-error" class="text-sm text-red-600 text-center hidden"></p>
+      </div>
+    </section>
+
+    <section id="admin-project-shell" class="space-y-8 hidden">
+      <header class="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <p class="text-sm uppercase tracking-wide text-orange-600 font-semibold">Administratoriaus projektas</p>
+          <h1 class="text-3xl font-bold">Projekto peržiūra</h1>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <a href="admin.html#project-management-tab" id="admin-project-back-btn" class="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-slate-200 bg-white font-semibold text-slate-900 hover:bg-slate-50 transition">
+            ← Atgal į projektų sąrašą
+          </a>
+          <button id="admin-project-logout-btn" class="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-slate-200 bg-white font-semibold text-slate-900 hover:bg-slate-50 transition">
+            Atsijungti
+          </button>
+        </div>
+      </header>
+
+      <div class="bg-white rounded-3xl border border-slate-200 p-4 flex flex-wrap items-center gap-3 justify-between">
+        <div class="flex items-center gap-2 text-sm text-slate-500">
+          <span class="w-2 h-2 rounded-full bg-green-500"></span>
+          <span id="admin-project-status">Peržiūros režimas</span>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button id="admin-project-edit-btn" class="px-4 py-2 rounded-full border border-slate-900 text-slate-900 font-semibold hover:bg-slate-900 hover:text-white transition">Redaguoti</button>
+          <button id="admin-project-cancel-btn" class="px-4 py-2 rounded-full bg-white border border-slate-200 font-semibold text-slate-700 hover:bg-slate-50 transition hidden">Atšaukti</button>
+          <button id="admin-project-save-btn" class="px-4 py-2 rounded-full bg-blue-600 text-white font-semibold hover:bg-blue-700 transition hidden">
+            <span>Įrašyti</span>
+            <span id="admin-project-save-spinner" class="spinner hidden"></span>
+          </button>
+          <button id="admin-project-delete-btn" class="px-4 py-2 rounded-full bg-red-600 text-white font-semibold hover:bg-red-700 transition">
+            Ištrinti
+            <span id="admin-project-delete-spinner" class="spinner hidden"></span>
+          </button>
+        </div>
+      </div>
+
+      <section id="admin-project-edit-panel" class="bg-white rounded-3xl border border-slate-200 p-6 space-y-4 hidden">
+        <div>
+          <p class="text-sm uppercase text-orange-600 font-semibold">Redagavimo forma</p>
+          <h2 class="text-2xl font-bold">Atnaujinkite projekto informaciją</h2>
+        </div>
+
+        <div class="space-y-3">
+          <label class="text-sm font-semibold">Pavadinimas</label>
+          <input type="text" id="edit-project-title" class="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-orange-500" placeholder="Projekto pavadinimas" />
+        </div>
+
+        <div class="space-y-3">
+          <label class="text-sm font-semibold">Aprašymas</label>
+          <textarea id="edit-project-description" rows="5" class="w-full p-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-orange-500"></textarea>
+        </div>
+
+        <div class="space-y-3">
+          <label class="text-sm font-semibold">Esamos nuotraukos</label>
+          <p class="text-xs text-slate-500">Spustelėkite kryželį, kad pažymėtumėte nuotrauką pašalinimui. Pašalinimas bus atliktas tik išsaugojus.</p>
+          <p id="admin-project-existing-empty" class="text-sm text-slate-500 hidden">Šiuo metu nėra įkeltų nuotraukų.</p>
+          <div id="admin-project-existing-images" class="flex flex-wrap gap-2"></div>
+        </div>
+
+        <div class="space-y-3">
+          <label class="text-sm font-semibold">Pridėti naujų nuotraukų</label>
+          <div class="flex items-center gap-3">
+            <label for="admin-project-image" class="inline-flex items-center justify-center bg-white border border-slate-300 text-slate-900 rounded-xl px-4 py-2 font-semibold cursor-pointer hover:bg-slate-50 transition">Pasirinkti failus</label>
+            <span id="admin-project-image-filename" class="text-sm text-slate-500">Failai nepasirinkti</span>
+          </div>
+          <input type="file" id="admin-project-image" accept="image/*" multiple class="hidden" />
+          <div id="admin-project-image-previews" class="flex flex-wrap gap-2"></div>
+        </div>
+
+        <p id="admin-project-edit-error" class="text-sm text-red-600 hidden"></p>
+      </section>
+
+      <div id="project-detail-content" class="space-y-10">
+        <div id="project-loading" class="flex flex-col items-center justify-center py-20 text-slate-500 gap-3">
+          <span class="spinner"></span>
+          <span>Krauname projekto informaciją...</span>
+        </div>
+
+        <div id="project-error" class="hidden text-center bg-white rounded-3xl shadow-lg p-10">
+          <h2 class="text-3xl font-bold text-red-600 mb-4">Projektas nerastas</h2>
+          <p class="text-lg text-slate-600">Projektas galėjo būti pašalintas arba nuoroda neteisinga.</p>
+        </div>
+
+        <div id="project-display" class="hidden space-y-10">
+          <div class="space-y-3">
+            <p class="text-sm uppercase tracking-wide text-orange-600 font-semibold">Projektas</p>
+            <h1 id="project-title" class="text-4xl md:text-5xl font-bold"></h1>
+          </div>
+
+          <div class="grid gap-8 lg:grid-cols-[2fr_1fr]">
+            <div class="space-y-6">
+              <button type="button" id="project-hero-trigger" class="project-hero-button aspect-video" aria-label="Peržiūrėti pagrindinę nuotrauką dideliame lange">
+                <img id="project-hero-image" src="https://placehold.co/1200x800?text=Projektas" alt="" loading="eager" />
+                <span class="project-hero-zoom-indicator">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2h-4" />
+                    <path d="M9 21H5a2 2 0 0 1-2-2v-4" />
+                    <path d="M3 9V5a2 2 0 0 1 2-2h4" />
+                    <path d="M15 3h4a2 2 0 0 1 2 2v4" />
+                  </svg>
+                  Priartinti
+                </span>
+              </button>
+              <div id="project-gallery" class="project-gallery-grid"></div>
+            </div>
+            <div class="bg-white rounded-3xl shadow-lg p-8 space-y-4">
+              <h3 class="text-xl font-semibold text-slate-900">Apie projektą</h3>
+              <p id="project-description" class="text-slate-600 leading-relaxed"></p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="./src/firebase.js"></script>
+  <script type="module" src="./src/main.js"></script>
+  <script type="module" src="./src/ui-utils.js"></script>
+  <script type="module" src="./src/admin-project.js"></script>
+</body>
+</html>

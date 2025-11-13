@@ -1,53 +1,158 @@
+import './style.css';
 // main.js
-// Import shared Firebase instances from firebase.js
-import { db, storage, auth, appId } from './firebase.js';
-import { collection, addDoc, getDocs, deleteDoc, doc, query, serverTimestamp, updateDoc, setDoc as firestoreSetDoc, getDoc } from 'firebase/firestore'; 
-import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+// Import shared Firebase instances and firebaseConfig from firebase.js
+import { db, auth, firebaseConfig } from './firebase.js';
+import { collection, addDoc, getDocs, deleteDoc, doc, query, orderBy, serverTimestamp, updateDoc, setDoc as firestoreSetDoc, getDoc } from 'firebase/firestore'; 
 // Corrected import: only import showNotification and showConfirmationModal
 import { showNotification, showConfirmationModal } from './ui-utils.js'; 
-
-console.log('main.js: db imported at top level:', db); // DEBUG: Check if db is imported
+import { setLightboxImages, registerLightboxTrigger } from './gallery-lightbox.js';
 
 // Global variables
 let allProjectsData = [];
 // Store default texts from HTML to use if Firebase is unavailable or content isn't set
 const defaultTexts = {};
+// Store default styles from HTML (inline or computed)
+const defaultStyles = {};
+const defaultLayoutStyles = {};
 
-// DOM Content Loaded
-document.addEventListener('DOMContentLoaded', function() {
-  console.log('main.js: DOMContentLoaded fired.'); // DEBUG
+// Define a maximum length for descriptions on the portfolio cards
+const MAX_CARD_DESCRIPTION_LENGTH = 120; // You can adjust this value as needed
+let defaultsCaptured = false;
 
-  // Check if we're on index.html by looking for a unique element (e.g., portfolio-grid)
+const CONTACT_FIELD_LIMITS = {
+  name: 120,
+  email: 254,
+  title: 140,
+  message: 1500,
+};
+
+const THUMB_ZOOM_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M12 5v14" />
+  <path d="M5 12h14" />
+</svg>`;
+
+function captureDefaultEditableContent() {
+  if (defaultsCaptured) return;
+  defaultsCaptured = true;
+
+  document.querySelectorAll('[data-editable-text-id], [data-editable-placeholder-id]').forEach((element) => {
+    const id = element.dataset.editableTextId || element.dataset.editablePlaceholderId;
+    if (!id || defaultTexts[id] !== undefined) return;
+    if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA') {
+      defaultTexts[id] = element.value;
+    } else {
+      defaultTexts[id] = element.textContent;
+    }
+  });
+
+  document.querySelectorAll('[data-editable-color-id], [data-editable-background-color-id], [data-editable-gradient-id], [data-editable-background-image-id], [data-editable-background-id]').forEach((element) => {
+    const styles = window.getComputedStyle(element);
+    let id;
+    let type;
+    let defaultValue;
+
+    if (element.dataset.editableColorId) {
+      id = element.dataset.editableColorId;
+      type = 'color';
+      defaultValue = styles.color;
+    } else if (element.dataset.editableBackgroundColorId) {
+      id = element.dataset.editableBackgroundColorId;
+      type = 'background-color';
+      defaultValue = styles.backgroundColor;
+    } else if (element.dataset.editableGradientId) {
+      id = element.dataset.editableGradientId;
+      type = 'gradient';
+      defaultValue = styles.backgroundImage;
+    } else if (element.dataset.editableBackgroundImageId) {
+      id = element.dataset.editableBackgroundImageId;
+      type = 'background-image';
+      defaultValue = styles.backgroundImage;
+    } else if (element.dataset.editableBackgroundId) {
+      id = element.dataset.editableBackgroundId;
+      const bgImage = styles.backgroundImage;
+      const bgColor = styles.backgroundColor;
+      if (bgImage && bgImage !== 'none' && bgImage.startsWith('linear-gradient')) {
+        type = 'gradient';
+        defaultValue = bgImage;
+      } else if (bgImage && bgImage !== 'none' && bgImage.startsWith('url')) {
+        type = 'background-image';
+        defaultValue = bgImage;
+      } else if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent') {
+        type = 'background-color';
+        defaultValue = bgColor;
+      } else {
+        type = 'background-color';
+        defaultValue = 'rgb(255, 255, 255)';
+      }
+    }
+
+    if (!id || defaultStyles[id] !== undefined) return;
+    defaultStyles[id] = { type, value: defaultValue };
+  });
+
+  document.querySelectorAll('.editable-element[id]').forEach((element) => {
+    const elementId = element.id;
+    if (!elementId || defaultLayoutStyles[elementId]) return;
+    defaultLayoutStyles[elementId] = getLayoutStylesForElement(element);
+  });
+
+  document.querySelectorAll('[data-editable-link-id]').forEach((element) => {
+    const id = element.dataset.editableLinkId;
+    if (!id || defaultStyles[id]) return;
+    defaultStyles[id] = { type: 'link', value: element.getAttribute('href') || '' };
+  });
+}
+
+function initIndexPage() {
+  captureDefaultEditableContent();
+  auth.onAuthStateChanged(() => {
+    setupMobileMenu();
+    loadPortfolioProjects();
+    loadEditableContentAndStyles();
+    setupScrollIndicator();
+    setupContactForm();
+  });
+}
+
+function initProjectDetailPage() {
+  auth.onAuthStateChanged(() => {
+    loadProjectDetails();
+  });
+}
+
+function bootstrapPublicPages() {
   const isIndexPage = document.getElementById('portfolio-grid') !== null;
+  const isProjectsListingPage = document.getElementById('projects-list') !== null;
+  const isProjectDetailPage = document.getElementById('project-detail-content') !== null;
+  const hasEditableElements = document.querySelector('[data-editable-text-id],[data-editable-placeholder-id],[data-editable-color-id],[data-editable-background-color-id],[data-editable-gradient-id],[data-editable-background-image-id],[data-editable-background-id],[data-editable-link-id]') !== null;
+
+  if (hasEditableElements) {
+    captureDefaultEditableContent();
+    loadEditableContentAndStyles();
+  }
 
   if (isIndexPage) {
-    // Removed: initializeNotificationModal(); initializeConfirmationModal();
-    // These are now handled by ui-utils.js itself on DOMContentLoaded.
+    initIndexPage();
+  } else if (isProjectsListingPage) {
+    initProjectsListingPage();
+  } else if (isProjectDetailPage) {
+    initProjectDetailPage();
+  }
+}
 
-    // Collect default texts from HTML before loading from Firebase
-    document.querySelectorAll('[data-text-id]').forEach(element => {
-      const id = element.dataset.textId;
-      if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA') {
-        defaultTexts[id] = element.value;
-      } else {
-        defaultTexts[id] = element.textContent;
-      }
-    });
+document.addEventListener('DOMContentLoaded', () => {
+  const start = () => bootstrapPublicPages();
+  const shellExists = document.getElementById('site-main');
+  const portfolioReady = document.getElementById('portfolio-grid') !== null;
 
-    // Ensure Firebase auth state is determined before attempting to load data
-    auth.onAuthStateChanged(user => {
-        // user object will be null if no one is signed in, or contain user info
-        // This callback ensures Firebase is ready
-        console.log('main.js: Firebase Auth state changed in main.js. User:', user ? user.uid : 'none');
-        setupMobileMenu();
-        loadPortfolioProjects(); // Projects are separate from general editable texts
-        loadEditableContent(); // Load content for the main website
-        setupScrollIndicator();
-        setupContactForm();
-    });
-
+  if (shellExists && !portfolioReady) {
+    if (window.__siteRendered) {
+      start();
+    } else {
+      window.addEventListener('site:rendered', start, { once: true });
+    }
   } else {
-    console.log('main.js: Skipping portfolio setup on non-index page (e.g., admin.html).');
+    start();
   }
 });
 
@@ -105,16 +210,37 @@ function setupContactForm() {
     contactForm.addEventListener('submit', async function(e) {
       e.preventDefault();
 
-      const name = contactForm.name.value;
-      const email = contactForm.email.value;
-      const message = contactForm.message.value;
+      const name = (contactForm.name.value || '').trim();
+      const email = (contactForm.email.value || '').trim();
+      const title = contactForm.title ? (contactForm.title.value || '').trim() : '';
+      const message = (contactForm.message.value || '').trim();
+
+      const limitErrors = [];
+      if (!name || name.length > CONTACT_FIELD_LIMITS.name) {
+        limitErrors.push(`Vardas turi būti iki ${CONTACT_FIELD_LIMITS.name} simbolių.`);
+      }
+      if (!email || email.length > CONTACT_FIELD_LIMITS.email) {
+        limitErrors.push(`El. paštas turi būti iki ${CONTACT_FIELD_LIMITS.email} simbolių.`);
+      }
+      if (!title || title.length > CONTACT_FIELD_LIMITS.title) {
+        limitErrors.push(`Tema turi būti iki ${CONTACT_FIELD_LIMITS.title} simbolių.`);
+      }
+      if (!message || message.length > CONTACT_FIELD_LIMITS.message) {
+        limitErrors.push(`Žinutė turi būti iki ${CONTACT_FIELD_LIMITS.message} simbolių.`);
+      }
+
+      if (limitErrors.length) {
+        showNotification('Formos klaida', limitErrors.join(' '), 'error');
+        return;
+      }
 
       try {
-        // Use the correct Firestore path for public messages
-        const messagesCollectionRef = collection(db, `artifacts/${appId}/public/data/messages`);
+        // Use the correct Firestore path for public messages using projectId
+        const messagesCollectionRef = collection(db, `artifacts/${firebaseConfig.projectId}/public/data/messages`);
         await addDoc(messagesCollectionRef, {
           name,
           email,
+          title,
           message,
           timestamp: serverTimestamp()
         });
@@ -154,8 +280,8 @@ export async function loadPortfolioProjects() {
       throw new Error("Database not initialized.");
     }
 
-    // Use the correct Firestore path for public projects
-    const projectsCol = collection(db, `artifacts/${appId}/public/data/projects`);
+    // Use the correct Firestore path for public projects using projectId
+    const projectsCol = collection(db, `artifacts/${firebaseConfig.projectId}/public/data/projects`);
     const q = query(projectsCol); 
 
     const snapshot = await getDocs(q);
@@ -185,240 +311,721 @@ export async function loadPortfolioProjects() {
   }
 }
 
-/**
- * Renders projects into a specified grid.
- * Adds lazy loading attribute to images.
- * @param {Array} projects - Array of project data.
- * @param {HTMLElement} targetGrid - The DOM element to render projects into.
- */
-function renderProjects(projects, targetGrid) {
-  targetGrid.innerHTML = ''; // Clear existing content
-  projects.forEach(project => {
-    const projectCard = `
-      <div class="bg-white rounded-2xl shadow-lg overflow-hidden card-hover">
-        <img src="${project.imageUrl}" alt="${project.title}" class="w-full h-48 object-cover" loading="lazy">
-        <div class="p-6">
-          <h3 class="text-xl font-semibold text-gray-900 mb-2">${project.title}</h3>
-          <p class="text-gray-600 text-sm">${project.description}</p>
-        </div>
-      </div>
-    `;
-    targetGrid.insertAdjacentHTML('beforeend', projectCard);
-  });
-}
+async function initProjectsListingPage() {
+  const list = document.getElementById('projects-list');
+  const loading = document.getElementById('projects-list-loading');
+  const error = document.getElementById('projects-list-error');
+  const empty = document.getElementById('projects-list-empty');
 
-// Handle "View All Projects" modal
-const allProjectsModal = document.getElementById('all-projects-modal');
-const showAllProjectsBtnIndex = document.getElementById('show-all-projects'); // Renamed to avoid conflict
-const closeProjectsModalBtn = document.getElementById('close-projects-modal');
-const allProjectsGrid = document.getElementById('all-projects-grid');
+  if (!list || !loading || !error || !empty) return;
 
-if (showAllProjectsBtnIndex && allProjectsModal && closeProjectsModalBtn && allProjectsGrid) {
-  showAllProjectsBtnIndex.addEventListener('click', () => { // Used renamed variable
-    if (allProjectsData.length > 0) {
-      renderProjects(allProjectsData, allProjectsGrid);
-    } else {
-      allProjectsGrid.innerHTML = '<p class="text-center text-gray-500 col-span-full">No projects found.</p>';
-    }
-    allProjectsModal.classList.remove('hidden');
-    // Set focus to the close button when modal opens
-    closeProjectsModalBtn.focus();
-  });
+  loading.classList.remove('hidden');
+  list.classList.add('hidden');
+  error.classList.add('hidden');
+  empty.classList.add('hidden');
 
-  closeProjectsModalBtn.addEventListener('click', () => {
-    allProjectsModal.classList.add('hidden');
-    // Return focus to the button that opened the modal
-    showAllProjectsBtnIndex.focus();
-  });
-}
-
-
-/**
- * Adds a new project to Firestore and uploads its image to Storage.
- * @param {object} projectData - The project data (title, description).
- * @param {File} imageFile - The image file to upload.
- * @returns {Promise<boolean>} True if successful, false otherwise.
- */
-export async function addProjectToFirebase(projectData, imageFile) {
   try {
-    if (!db || !storage) {
-      console.error("addProjectToFirebase: Firestore DB or Storage is null or undefined.");
-      throw new Error("Firebase services not initialized.");
+    if (!db) {
+      throw new Error('Database not initialized.');
     }
-    
-    // 1. Upload image to Firebase Storage
-    const imageRef = ref(storage, `artifacts/${appId}/public/images/projects/${imageFile.name}`);
-    const uploadResult = await uploadBytes(imageRef, imageFile);
-    const imageUrl = await getDownloadURL(uploadResult.ref);
+    const projectsCol = collection(db, `artifacts/${firebaseConfig.projectId}/public/data/projects`);
+    const qProjects = query(projectsCol, orderBy('timestamp', 'desc'));
+    const snapshot = await getDocs(qProjects);
 
-    // 2. Add project data to Firestore
-    // Use the correct Firestore path for public projects
-    const projectsCollectionRef = collection(db, `artifacts/${appId}/public/data/projects`);
-    await addDoc(projectsCollectionRef, {
-      title: projectData.title,
-      description: projectData.description,
-      imageUrl: imageUrl,
-      timestamp: serverTimestamp()
+    const projects = [];
+    snapshot.forEach((docSnap) => {
+      projects.push({ id: docSnap.id, ...docSnap.data() });
     });
 
-    console.log('Project added successfully!');
-    return true;
-  } catch (error) {
-    console.error('Error adding project:', error);
-    throw error; // Re-throw to be caught by the calling function
-  }
-}
+    loading.classList.add('hidden');
 
-/**
- * Deletes a project from Firestore and its image from Storage.
- * @param {string} projectId - The ID of the project document to delete.
- * @param {string} imageUrl - The URL of the image to delete from storage.
- * @returns {Promise<boolean>} True if successful, false otherwise.
- */
-export async function deleteProjectFromFirebase(projectId, imageUrl) {
-  try {
-    if (!db || !storage) {
-      console.error("deleteProjectFromFirebase: Firestore DB or Storage is null or undefined.");
-      throw new Error("Firebase services not initialized.");
-    }
-
-    // 1. Delete document from Firestore
-    // Use the correct Firestore path for public projects
-    await deleteDoc(doc(db, `artifacts/${appId}/public/data/projects`, projectId));
-
-    // 2. Delete image from Firebase Storage
-    const imageRef = ref(storage, imageUrl);
-    await deleteObject(imageRef);
-
-    console.log(`Project ${projectId} and its image deleted successfully.`);
-    return true;
-  } catch (error) {
-    console.error(`Error deleting project ${projectId}:`, error);
-    throw error;
-  }
-}
-
-/**
- * Loads projects for the admin panel.
- * @returns {Promise<Array>} An array of project documents.
- */
-export async function loadProjectsForAdmin() {
-  try {
-    if (!db) {
-      console.error("loadProjectsForAdmin: Firestore DB is null or undefined.");
-      throw new Error("Database not initialized.");
-    }
-    // Use the correct Firestore path for public projects
-    const projectsCol = collection(db, `artifacts/${appId}/public/data/projects`);
-    const q = query(projectsCol); 
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-  } catch (error) {
-    console.error('Error loading projects for admin:', error);
-    throw error;
-  }
-}
-
-/**
- * Loads messages for the admin panel.
- * @returns {Promise<Array>} An array of message documents.
- */
-export async function loadMessagesForAdmin() {
-  try {
-    if (!db) {
-      console.error("loadMessagesForAdmin: Firestore DB is null or undefined.");
-      throw new Error("Database not initialized.");
-    }
-    // Use the correct Firestore path for public messages
-    const messagesCol = collection(db, `artifacts/${appId}/public/data/messages`);
-    const q = query(messagesCol); 
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-  } catch (error) {
-    console.error('Error loading messages for admin:', error);
-    throw error;
-  }
-}
-
-/**
- * Deletes a message from Firestore.
- * @param {string} messageId - The ID of the message document to delete.
- * @returns {Promise<boolean>} True if successful, false otherwise.
- */
-export async function deleteMessageFromFirebase(messageId) {
-  try {
-    if (!db) {
-      console.error("deleteMessageFromFirebase: Firestore DB is null or undefined.");
-      return false;
-    }
-    // Use the correct Firestore path for public messages
-    await deleteDoc(doc(db, `artifacts/${appId}/public/data/messages`, messageId));
-    console.log(`Message ${messageId} deleted successfully.`);
-    return true;
-  } catch (error) {
-    console.error(`Error deleting message ${messageId}:`, error);
-    return false;
-  }
-}
-
-/**
- * Loads editable content from Firestore for elements with data-text-id.
- */
-export async function loadEditableContent() {
-  console.log('main.js: Attempting to load editable texts:', Object.keys(defaultTexts));
-  try {
-    if (!db) {
-      console.error("loadEditableContent: Firestore DB is null or undefined.");
+    if (!projects.length) {
+      empty.classList.remove('hidden');
       return;
     }
 
-    // Iterate over each data-text-id element and try to load its content
-    document.querySelectorAll('[data-text-id]').forEach(async (element) => {
-      const textId = element.dataset.textId;
-      // Use the correct Firestore path for public editable texts
-      const docRef = doc(db, `artifacts/${appId}/public/data/editableTexts`, textId);
-      const snapshot = await getDoc(docRef);
+    renderProjects(projects, list);
+    list.classList.remove('hidden');
+  } catch (err) {
+    console.error('initProjectsListingPage error:', err);
+    loading.classList.add('hidden');
+    error.classList.remove('hidden');
+  }
+}
 
-      if (snapshot.exists()) {
-        const content = snapshot.data().content;
-        if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA') {
-          element.value = content;
-        } else {
-          element.textContent = content;
-        }
-        console.log(`Updated text for '${textId}' from Firebase.`);
-      } else {
-        console.log(`No content found in Firebase for '${textId}'. Using default HTML content.`);
-        // If no content in Firebase, the default HTML content will remain
+/**
+ * Renders projects into a specified grid.
+ * Adds lazy loading attribute to images.
+ * Makes project cards clickable to view details.
+ * @param {Array} projects - Array of project data.
+ * @param {HTMLElement} targetGrid - The DOM element to render projects into.
+ */
+function renderProjects(projects, targetGrid, variant = 'grid') {
+  targetGrid.innerHTML = '';
+  if (!projects.length) {
+    targetGrid.innerHTML = '<p class="text-center text-gray-500 col-span-full">No projects found.</p>';
+    return;
+  }
+  projects.forEach((project) => {
+    targetGrid.insertAdjacentHTML('beforeend', createProjectCard(project, variant));
+  });
+}
+
+function createProjectCard(project, variant = 'grid') {
+  const description = project.description || '';
+  const displayedDescription =
+    description.length > MAX_CARD_DESCRIPTION_LENGTH
+      ? `${description.substring(0, MAX_CARD_DESCRIPTION_LENGTH)}...`
+      : description;
+  const thumbnailUrl =
+    project.imageUrls && project.imageUrls.length > 0
+      ? project.imageUrls[0]
+      : 'https://placehold.co/800x600?text=No+Image';
+
+  if (variant === 'grid') {
+    return `
+      <a href="../project-detail.html?id=${project.id}" class="group bg-white border border-slate-100 rounded-3xl shadow-sm hover:shadow-2xl transition flex flex-col overflow-hidden">
+        <div class="relative aspect-[4/3] overflow-hidden">
+          <img src="${thumbnailUrl}" alt="${project.title}" class="w-full h-full object-cover transition duration-500 group-hover:scale-105" loading="lazy">
+        </div>
+        <div class="p-6 space-y-3">
+          <h3 class="text-xl font-semibold text-slate-900">${project.title}</h3>
+          <p class="text-sm text-slate-600 leading-relaxed">${displayedDescription}</p>
+          <span class="inline-flex items-center text-orange-600 font-semibold gap-2">
+            Žiūrėti projektą
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"></path>
+            </svg>
+          </span>
+        </div>
+      </a>
+    `;
+  }
+
+  return `
+    <div class="flex gap-5 p-4 rounded-2xl border border-slate-200 bg-white">
+      <div class="w-32 h-24 rounded-xl overflow-hidden flex-shrink-0">
+        <img src="${thumbnailUrl}" alt="${project.title}" class="w-full h-full object-cover" loading="lazy">
+      </div>
+      <div>
+        <h3 class="text-lg font-semibold text-slate-900">${project.title}</h3>
+        <p class="text-slate-600 text-sm mt-2">${displayedDescription}</p>
+        <a href="../project-detail.html?id=${project.id}" class="inline-flex items-center text-orange-600 font-semibold mt-3">View details →</a>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Loads editable content (text and styles) from Firestore for elements with data-text-id and data-editable-id.
+ */
+export async function loadEditableContentAndStyles() {
+  try {
+    if (!db) {
+      console.error("loadEditableContentAndStyles: Firestore DB is null or undefined.");
+      return;
+    }
+
+    // Select elements based on any of the data attributes for editable content/styles
+    const elementsToUpdate = document.querySelectorAll(
+        '[data-editable-text-id], [data-editable-placeholder-id], ' +
+        '[data-editable-color-id], [data-editable-background-color-id], ' +
+        '[data-editable-gradient-id], [data-editable-background-image-id], ' +
+        '[data-editable-background-id], [data-editable-link-id]'
+    );
+    
+    const textFetchPromises = [];
+    const styleFetchPromises = [];
+
+    elementsToUpdate.forEach(element => {
+      // Check for each specific editable data attribute and push corresponding fetch promise
+      if (element.dataset.editableTextId) {
+        const id = element.dataset.editableTextId;
+        const docRef = doc(db, `artifacts/${firebaseConfig.projectId}/public/data/editableTexts`, id);
+        textFetchPromises.push(getDoc(docRef).then(snapshot => ({ element, snapshot, id, type: 'text' })));
+      }
+      if (element.dataset.editablePlaceholderId) {
+        const id = element.dataset.editablePlaceholderId;
+        const docRef = doc(db, `artifacts/${firebaseConfig.projectId}/public/data/editableTexts`, id);
+        textFetchPromises.push(getDoc(docRef).then(snapshot => ({ element, snapshot, id, type: 'placeholder' })));
+      }
+      if (element.dataset.editableColorId) {
+        const id = element.dataset.editableColorId;
+        const docRef = doc(db, `artifacts/${firebaseConfig.projectId}/public/data/editableStyles`, id);
+        styleFetchPromises.push(getDoc(docRef).then(snapshot => ({ element, snapshot, id, type: 'color' })));
+        const outlineId = `${id}__outline`;
+        const outlineDocRef = doc(db, `artifacts/${firebaseConfig.projectId}/public/data/editableStyles`, outlineId);
+        styleFetchPromises.push(
+          getDoc(outlineDocRef).then(snapshot => ({ element, snapshot, id: outlineId, type: 'text-outline' }))
+        );
+      }
+      if (element.dataset.editableLinkId) {
+        const id = element.dataset.editableLinkId;
+        const docRef = doc(db, `artifacts/${firebaseConfig.projectId}/public/data/editableStyles`, id);
+        styleFetchPromises.push(getDoc(docRef).then(snapshot => ({ element, snapshot, id, type: 'link' })));
+      }
+      if (element.dataset.editableBackgroundColorId) {
+        const id = element.dataset.editableBackgroundColorId;
+        const docRef = doc(db, `artifacts/${firebaseConfig.projectId}/public/data/editableStyles`, id);
+        styleFetchPromises.push(getDoc(docRef).then(snapshot => ({ element, snapshot, id, type: 'background-color' })));
+      }
+      // Combine gradient and background-image handling under data-editable-background-id
+      else if (element.dataset.editableGradientId) { // Legacy gradient ID
+          const id = element.dataset.editableGradientId;
+          const docRef = doc(db, `artifacts/${firebaseConfig.projectId}/public/data/editableStyles`, id);
+          styleFetchPromises.push(getDoc(docRef).then(snapshot => {
+              const firebaseType = snapshot.exists() ? snapshot.data().type : 'gradient'; 
+              return { element, snapshot, id, type: firebaseType }; 
+          }));
+      } else if (element.dataset.editableBackgroundImageId) { // Legacy background-image ID
+          const id = element.dataset.editableBackgroundImageId;
+          const docRef = doc(db, `artifacts/${firebaseConfig.projectId}/public/data/editableStyles`, id);
+          styleFetchPromises.push(getDoc(docRef).then(snapshot => {
+              const firebaseType = snapshot.exists() ? snapshot.data().type : 'background-image';
+              return { element, snapshot, id, type: firebaseType }; 
+          }));
+      } else if (element.dataset.editableBackgroundId) { // New generic background ID
+          const id = element.dataset.editableBackgroundId;
+          const docRef = doc(db, `artifacts/${firebaseConfig.projectId}/public/data/editableStyles`, id);
+          styleFetchPromises.push(getDoc(docRef).then(snapshot => {
+              const firebaseType = snapshot.exists() ? snapshot.data().type : 'gradient'; // Default to gradient if not specified
+              return { element, snapshot, id, type: firebaseType }; 
+          }));
       }
     });
 
+    const textResults = await Promise.all(textFetchPromises);
+    const styleResults = await Promise.all(styleFetchPromises);
+
+    textResults.forEach(({ element, snapshot, id, type }) => {
+      if (snapshot.exists()) {
+        const content = snapshot.data().content;
+        if (type === 'placeholder') {
+          element.setAttribute('placeholder', content);
+        } else {
+          element.textContent = content;
+        }
+      } else {
+        // If content is not in Firebase, keep the default from HTML
+        if (defaultTexts[id] !== undefined) {
+          if (type === 'placeholder') {
+            element.setAttribute('placeholder', defaultTexts[id]);
+          } else {
+            element.textContent = defaultTexts[id];
+          }
+        }
+      }
+    });
+
+    styleResults.forEach(({ element, snapshot, id }) => { 
+      if (snapshot.exists()) {
+        const value = snapshot.data().value;
+        const savedType = snapshot.data().type;
+
+        if (savedType === 'color') {
+            element.style.color = value;
+        } else if (savedType === 'background-color') {
+            element.style.backgroundColor = value;
+        } else if (savedType === 'gradient') {
+            element.style.backgroundImage = value;
+        } else if (savedType === 'background-image') {
+            element.style.backgroundImage = value === 'none' ? 'none' : `url('${value}')`;
+            element.style.backgroundSize = 'cover'; 
+            element.style.backgroundPosition = 'center';
+            element.style.backgroundRepeat = 'no-repeat';
+        } else if (savedType === 'text-outline') {
+            if (typeof value === 'object') {
+                applyTextOutlineStyles(element, Boolean(value.enabled), value.color || 'currentColor', `${value.width || 1}px`);
+            } else {
+                applyTextOutlineStyles(element, value === 'on');
+            }
+        } else if (savedType === 'link') {
+            if (element.tagName === 'A') {
+                element.setAttribute('href', value || '#');
+                if (!value) {
+                    element.removeAttribute('target');
+                    element.removeAttribute('rel');
+                }
+            }
+        } else {
+            console.warn(`Unknown or unhandled style type '${savedType}' for ID '${id}'.`);
+        }
+      } else if (defaultStyles[id] !== undefined) {
+        const defaultVal = defaultStyles[id].value;
+        const defaultType = defaultStyles[id].type;
+
+        if (defaultType === 'color') {
+            element.style.color = defaultVal;
+        } else if (defaultType === 'background-color') {
+            element.style.backgroundColor = defaultVal;
+        } else if (defaultType === 'gradient') {
+            element.style.backgroundImage = defaultVal;
+        } else if (defaultType === 'background-image') {
+            element.style.backgroundImage = defaultVal === 'none' ? 'none' : `url('${defaultVal}')`;
+            element.style.backgroundSize = 'cover';
+            element.style.backgroundPosition = 'center';
+            element.style.backgroundRepeat = 'no-repeat';
+        } else if (defaultType === 'text-outline') {
+            if (typeof defaultVal === 'object') {
+                applyTextOutlineStyles(element, Boolean(defaultVal.enabled), defaultVal.color || 'currentColor', `${defaultVal.width || 1}px`);
+            } else {
+                applyTextOutlineStyles(element, defaultVal === 'on');
+            }
+        } else if (defaultType === 'link') {
+            if (element.tagName === 'A') {
+                element.setAttribute('href', defaultVal || '#');
+                if (!defaultVal) {
+                    element.removeAttribute('target');
+                    element.removeAttribute('rel');
+                }
+            }
+        }
+      }
+    });
+
+    await loadEditableLayouts();
+
+    // If this script is running inside the iframe in admin panel, notify parent it's loaded
+    if (window.parent && window.parent !== window) {
+        window.parent.postMessage({ type: 'IFRAME_CONTENT_LOADED' }, '*');
+    }
+
   } catch (error) {
-    console.error('Error loading editable content:', error);
+    console.error('Error loading editable content and styles:', error);
     // Optionally, show a user-friendly error message
   }
 }
 
-/**
- * Saves a single editable text document to Firestore.
- * This is exported for use by content-editor.js (or other admin-side scripts).
- * @param {string} textId The ID of the text document.
- * @param {string} newContent The new text content.
- * @returns {Promise<boolean>} True if successful, false otherwise.
- */
-export async function saveEditableText(textId, newContent) {
-  try {
-    if (!db) {
-      console.error("saveEditableText: Firestore DB is null or undefined.");
-      return false;
+// Listen for messages from the parent window (admin.html)
+window.addEventListener('message', (event) => {
+    // Only process messages from the expected origin (your admin panel's domain)
+    // In development, you might use '*' but secure this in production.
+    if (event.data.type === 'LOAD_EDITABLE_CONTENT') {
+        loadEditableContentAndStyles(); // Reload all content and styles
+    } else if (event.data.type === 'UPDATE_ELEMENT_AFTER_SAVE') {
+        const { id, value, elementType } = event.data;
+        // Select element based on its specific data-editable-*-id
+        const element = document.querySelector(
+            `[data-editable-text-id="${id}"], [data-editable-placeholder-id="${id}"], ` +
+            `[data-editable-color-id="${id}"], [data-editable-background-color-id="${id}"], ` +
+            `[data-editable-gradient-id="${id}"], [data-editable-background-image-id="${id}"], ` +
+            `[data-editable-background-id="${id}"]` // Include the new generic background ID
+        );
+
+        if (element) {
+            // Clear previous background styles to prevent conflicts
+            element.style.backgroundImage = '';
+            element.style.backgroundColor = '';
+            element.style.color = ''; // Also clear color here for consistency
+            element.style.backgroundSize = '';
+            element.style.backgroundPosition = '';
+            element.style.backgroundRepeat = '';
+
+            if (elementType === 'text' || elementType === 'placeholder') { 
+                if (elementType === 'placeholder') {
+                    element.setAttribute('placeholder', value);
+                } else {
+                    element.textContent = value;
+                }
+            } else if (elementType === 'color') { // CORRECTED: Apply to text color
+                element.style.color = value;
+            } else if (elementType === 'background-color') { // CORRECTED: Apply to background color
+                element.style.backgroundColor = value;
+            } else if (elementType === 'gradient') { 
+                element.style.backgroundImage = value;
+            } else if (elementType === 'background-image') { 
+                element.style.backgroundImage = value === 'none' ? 'none' : `url('${value}')`;
+                element.style.backgroundSize = 'cover';
+                element.style.backgroundPosition = 'center';
+                element.style.backgroundRepeat = 'no-repeat';
+            }
+        } else {
+            console.warn(`IFRAME: Element with ID matching '${id}' not found for live update.`);
+        }
+    } else if (event.data.type === 'REQUEST_PAGE_SNAPSHOT') {
+        const snapshot = buildCurrentSnapshot();
+        window.parent.postMessage({ type: 'PAGE_SNAPSHOT_RESPONSE', requestId: event.data.requestId, snapshot }, '*');
+    } else if (event.data.type === 'REQUEST_DEFAULT_SNAPSHOT') {
+        const snapshot = buildDefaultSnapshot();
+        window.parent.postMessage({ type: 'DEFAULT_SNAPSHOT_RESPONSE', requestId: event.data.requestId, snapshot }, '*');
     }
-    // Use the correct Firestore path for public editable texts
-    const textDocRef = doc(db, `artifacts/${appId}/public/data/editableTexts`, textId);
-    await firestoreSetDoc(textDocRef, { content: newContent, lastModified: serverTimestamp() }, { merge: true });
-    console.log(`Text ID '${textId}' saved successfully.`);
-    return true;
-  } catch (error) {
-    console.error(`Error saving editable text '${textId}':`, error);
-    return false;
-  }
+});
+
+function getLayoutStylesForElement(element) {
+    if (!element) return {};
+    const computed = element.ownerDocument.defaultView.getComputedStyle(element);
+    return {
+        marginTop: computed.marginTop,
+        marginRight: computed.marginRight,
+        marginBottom: computed.marginBottom,
+        marginLeft: computed.marginLeft,
+        paddingTop: computed.paddingTop,
+        paddingRight: computed.paddingRight,
+        paddingBottom: computed.paddingBottom,
+        paddingLeft: computed.paddingLeft,
+        order: computed.order || '0',
+        textAlign: computed.textAlign || '',
+        justifyContent: computed.justifyContent || '',
+        alignItems: computed.alignItems || '',
+        gap: computed.gap || ''
+    };
+}
+
+function applyLayoutStylesToElement(element, layoutData = {}) {
+    if (!element || !layoutData) return;
+    const assignableProps = [
+        'marginTop',
+        'marginRight',
+        'marginBottom',
+        'marginLeft',
+        'paddingTop',
+        'paddingRight',
+        'paddingBottom',
+        'paddingLeft',
+        'order',
+        'textAlign',
+        'justifyContent',
+        'alignItems',
+        'gap'
+    ];
+
+    assignableProps.forEach((prop) => {
+        if (Object.prototype.hasOwnProperty.call(layoutData, prop)) {
+            element.style[prop] = layoutData[prop];
+        }
+    });
+}
+
+async function loadEditableLayouts() {
+    try {
+        const layoutCollectionRef = collection(db, `artifacts/${firebaseConfig.projectId}/public/data/editableLayouts`);
+        const snapshot = await getDocs(layoutCollectionRef);
+        snapshot.forEach((docSnap) => {
+            const layoutData = docSnap.data();
+            const element =
+                document.getElementById(docSnap.id) ||
+                document.querySelector(`[data-editable-layout-id="${docSnap.id}"]`);
+            if (element) {
+                applyLayoutStylesToElement(element, layoutData);
+            }
+        });
+    } catch (error) {
+        console.error('Error loading layout overrides:', error);
+    }
+}
+
+function buildCurrentSnapshot() {
+    return {
+        texts: collectCurrentTextSnapshot(),
+        styles: collectCurrentStyleSnapshot(),
+        layouts: collectCurrentLayoutSnapshot()
+    };
+}
+
+function buildDefaultSnapshot() {
+    return {
+        texts: collectDefaultTextSnapshot(),
+        styles: collectDefaultStyleSnapshot(),
+        layouts: collectDefaultLayoutSnapshot()
+    };
+}
+
+function collectCurrentTextSnapshot() {
+    const snapshot = {};
+
+    document.querySelectorAll('[data-editable-text-id]').forEach((element) => {
+        const id = element.dataset.editableTextId;
+        if (!id) return;
+        snapshot[id] = { type: 'text', content: element.textContent || '' };
+    });
+
+    document.querySelectorAll('[data-editable-placeholder-id]').forEach((element) => {
+        const id = element.dataset.editablePlaceholderId;
+        if (!id) return;
+        snapshot[id] = { type: 'placeholder', content: element.getAttribute('placeholder') || element.placeholder || '' };
+    });
+
+    return snapshot;
+}
+
+function collectCurrentStyleSnapshot() {
+    const snapshot = {};
+
+    const ensureEntry = (id, type, value) => {
+        if (!id || value === undefined || value === null) return;
+        snapshot[id] = { type, value };
+    };
+
+    const getComputed = (element) => element.ownerDocument.defaultView.getComputedStyle(element);
+
+    document.querySelectorAll('[data-editable-color-id]').forEach((element) => {
+        ensureEntry(element.dataset.editableColorId, 'color', getComputed(element).color);
+    });
+
+    document.querySelectorAll('[data-editable-background-color-id]').forEach((element) => {
+        ensureEntry(element.dataset.editableBackgroundColorId, 'background-color', getComputed(element).backgroundColor);
+    });
+
+    document.querySelectorAll('[data-editable-gradient-id]').forEach((element) => {
+        ensureEntry(element.dataset.editableGradientId, 'gradient', getComputed(element).backgroundImage);
+    });
+
+    document.querySelectorAll('[data-editable-background-image-id]').forEach((element) => {
+        ensureEntry(
+            element.dataset.editableBackgroundImageId,
+            'background-image',
+            extractUrlFromBackgroundImage(getComputed(element).backgroundImage)
+        );
+    });
+
+    document.querySelectorAll('[data-editable-background-id]').forEach((element) => {
+        const id = element.dataset.editableBackgroundId;
+        if (!id) return;
+        const computed = getComputed(element);
+        const backgroundImage = computed.backgroundImage;
+
+        if (backgroundImage && backgroundImage.startsWith('linear-gradient')) {
+            ensureEntry(id, 'gradient', backgroundImage);
+        } else if (backgroundImage && backgroundImage !== 'none') {
+            ensureEntry(id, 'background-image', extractUrlFromBackgroundImage(backgroundImage));
+        } else {
+            ensureEntry(id, 'background-color', computed.backgroundColor);
+        }
+    });
+
+    return snapshot;
+}
+
+function collectCurrentLayoutSnapshot() {
+    const snapshot = {};
+    Object.keys(defaultLayoutStyles).forEach((id) => {
+        const element = document.getElementById(id) || document.querySelector(`[data-editable-layout-id="${id}"]`);
+        if (!element) return;
+        snapshot[id] = getLayoutStylesForElement(element);
+    });
+    return snapshot;
+}
+
+function collectDefaultTextSnapshot() {
+    const snapshot = {};
+
+    document.querySelectorAll('[data-editable-text-id]').forEach((element) => {
+        const id = element.dataset.editableTextId;
+        if (!id) return;
+        snapshot[id] = { type: 'text', content: defaultTexts[id] ?? element.textContent ?? '' };
+    });
+
+    document.querySelectorAll('[data-editable-placeholder-id]').forEach((element) => {
+        const id = element.dataset.editablePlaceholderId;
+        if (!id) return;
+        snapshot[id] = { type: 'placeholder', content: defaultTexts[id] ?? element.getAttribute('placeholder') ?? '' };
+    });
+
+    return snapshot;
+}
+
+function collectDefaultStyleSnapshot() {
+    const snapshot = {};
+    Object.entries(defaultStyles).forEach(([id, data]) => {
+        snapshot[id] = { type: data.type, value: data.value };
+    });
+    return snapshot;
+}
+
+function collectDefaultLayoutSnapshot() {
+    const snapshot = {};
+    Object.entries(defaultLayoutStyles).forEach(([id, data]) => {
+        snapshot[id] = { ...data };
+    });
+    return snapshot;
+}
+
+function extractUrlFromBackgroundImage(value) {
+    if (!value || value === 'none') return 'none';
+    const match = value.match(/url\((['"]?)(.*?)\1\)/);
+    return match ? match[2] : value;
+}
+
+function applyTextOutlineStyles(element, enabled, color = 'currentColor', width = '1px') {
+    if (!element) return;
+    if (enabled) {
+        element.style.webkitTextStroke = `${width} ${color}`;
+        element.style.textStroke = `${width} ${color}`;
+        element.style.paintOrder = 'stroke fill';
+    } else {
+        element.style.webkitTextStroke = '';
+        element.style.textStroke = '';
+        element.style.paintOrder = '';
+    }
+}
+
+function waitForImageElement(element) {
+    return new Promise((resolve) => {
+        if (!element) return resolve();
+        const settle = () => resolve();
+
+        if (element.complete && element.naturalWidth !== 0) {
+            return settle();
+        }
+
+        if (typeof element.decode === 'function') {
+            element.decode().then(settle).catch(settle);
+            return;
+        }
+
+        const cleanup = () => {
+            element.removeEventListener('load', cleanup);
+            element.removeEventListener('error', cleanup);
+            settle();
+        };
+
+        element.addEventListener('load', cleanup, { once: true });
+        element.addEventListener('error', cleanup, { once: true });
+    });
+}
+
+function waitForImageElements(elements = []) {
+    return Promise.all(elements.map((element) => waitForImageElement(element)));
+}
+
+
+/**
+ * Loads and displays details for a single project based on ID from URL.
+ */
+async function loadProjectDetails() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const projectId = urlParams.get('id');
+
+    const projectTitleTag = document.getElementById('project-detail-title-tag');
+    const projectLoadingDiv = document.getElementById('project-loading');
+    const projectErrorDiv = document.getElementById('project-error');
+    const projectDisplayDiv = document.getElementById('project-display');
+    const projectTitleElement = document.getElementById('project-title');
+    const projectHeroImageElement = document.getElementById('project-hero-image');
+    const projectHeroTriggerElement = document.getElementById('project-hero-trigger');
+    const projectGalleryElement = document.getElementById('project-gallery');
+    const projectDescriptionElement = document.getElementById('project-description');
+    const pageLoaderOverlay = document.getElementById('project-page-loader');
+    const setPageLoaderVisible = (visible) => {
+        if (!pageLoaderOverlay) return;
+        pageLoaderOverlay.classList.toggle('hidden', !visible);
+    };
+    setPageLoaderVisible(true);
+
+    // Show loading, hide others
+    if (projectLoadingDiv) projectLoadingDiv.classList.remove('hidden');
+    if (projectErrorDiv) projectErrorDiv.classList.add('hidden');
+    if (projectDisplayDiv) projectDisplayDiv.classList.add('hidden');
+
+    try {
+        if (!projectId) {
+            console.error('No project ID found in URL.');
+            if (projectLoadingDiv) projectLoadingDiv.classList.add('hidden');
+            if (projectErrorDiv) projectErrorDiv.classList.remove('hidden');
+            if (projectTitleTag) projectTitleTag.textContent = 'Project Not Found - Statyba';
+            return;
+        }
+
+        if (!db) {
+            console.error("loadProjectDetails: Firestore DB is null or undefined.");
+            throw new Error("Database not initialized.");
+        }
+
+        const projectDocRef = doc(db, `artifacts/${firebaseConfig.projectId}/public/data/projects`, projectId);
+        const projectSnapshot = await getDoc(projectDocRef);
+
+        if (projectSnapshot.exists()) {
+            const projectData = projectSnapshot.data();
+
+            if (projectTitleElement) {
+              projectTitleElement.textContent = projectData.title || 'Untitled Project';
+            }
+            if (projectDescriptionElement) {
+              projectDescriptionElement.textContent = projectData.description || 'No description available.';
+            }
+            if (projectTitleTag) {
+                projectTitleTag.textContent = `${projectData.title} - Statyba`;
+            }
+
+            const rawImageUrls = Array.isArray(projectData.imageUrls) ? projectData.imageUrls.filter(Boolean) : [];
+            const imageElementsToWaitFor = [];
+            if (projectHeroImageElement) {
+              const heroUrl = rawImageUrls[0] || 'https://placehold.co/1200x800?text=No+Image';
+              projectHeroImageElement.loading = 'eager';
+              projectHeroImageElement.decoding = 'async';
+              projectHeroImageElement.src = heroUrl;
+              projectHeroImageElement.alt = projectData.title || 'Projektas';
+              imageElementsToWaitFor.push(projectHeroImageElement);
+            }
+
+            const lightboxItems = rawImageUrls.map((url, index) => ({
+              url,
+              alt: `${projectData.title || 'Projektas'} nuotrauka ${index + 1}`,
+              caption: projectData.title || ''
+            }));
+            if (lightboxItems.length) {
+              setLightboxImages(lightboxItems);
+            } else {
+              setLightboxImages([]);
+            }
+
+            if (projectHeroTriggerElement) {
+              registerLightboxTrigger(projectHeroTriggerElement, 0);
+              if (lightboxItems.length) {
+                projectHeroTriggerElement.removeAttribute('aria-disabled');
+              } else {
+                projectHeroTriggerElement.setAttribute('aria-disabled', 'true');
+              }
+            }
+
+            if (projectGalleryElement) {
+              projectGalleryElement.innerHTML = '';
+              const galleryImages = rawImageUrls.slice(1);
+              galleryImages.forEach((url, galleryIndex) => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'project-gallery-thumb';
+                button.setAttribute('aria-label', `Peržiūrėti nuotrauką ${galleryIndex + 2}`);
+
+                const img = document.createElement('img');
+                img.src = url;
+                img.alt = projectData.title || 'Projektas';
+                img.loading = 'lazy';
+                img.decoding = 'async';
+                imageElementsToWaitFor.push(img);
+
+                const icon = document.createElement('span');
+                icon.className = 'project-gallery-thumb__icon';
+                icon.innerHTML = THUMB_ZOOM_ICON;
+
+                button.appendChild(img);
+                button.appendChild(icon);
+                projectGalleryElement.appendChild(button);
+
+                registerLightboxTrigger(button, galleryIndex + 1);
+              });
+            }
+
+            // Reveal page content immediately so images can continue loading underneath the overlay
+            if (projectLoadingDiv) projectLoadingDiv.classList.add('hidden');
+            if (projectDisplayDiv) projectDisplayDiv.classList.remove('hidden');
+
+            if (imageElementsToWaitFor.length) {
+              await waitForImageElements(imageElementsToWaitFor);
+            }
+
+        } else {
+            console.warn(`Project with ID ${projectId} not found.`);
+            if (projectLoadingDiv) projectLoadingDiv.classList.add('hidden');
+            if (projectErrorDiv) projectErrorDiv.classList.remove('hidden');
+            if (projectTitleTag) projectTitleTag.textContent = 'Project Not Found - Statyba';
+        }
+    } catch (error) {
+        console.error('Error loading project details:', error);
+        if (projectLoadingDiv) projectLoadingDiv.classList.add('hidden');
+        if (projectErrorDiv) projectErrorDiv.classList.remove('hidden');
+        if (projectTitleTag) projectTitleTag.textContent = 'Error - Statyba';
+    } finally {
+        setPageLoaderVisible(false);
+    }
 }
