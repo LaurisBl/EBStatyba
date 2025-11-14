@@ -1198,8 +1198,9 @@ async function saveChangesToFirebase() {
             const imageFile = editImageUpload.files[0];
 
             if (imageFile) {
-                // Upload new image to Storage
-                const imageRef = ref(storage, `artifacts/${firebaseConfig.projectId}/public/images/editor/${imageFile.name}`);
+                // Upload new image to Storage (use unique filenames to avoid overwriting conflicts)
+                const uniqueFilename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${imageFile.name}`;
+                const imageRef = ref(storage, `artifacts/${firebaseConfig.projectId}/public/images/editor/${uniqueFilename}`);
                 const uploadResult = await uploadBytes(imageRef, imageFile);
                 imageUrlToSave = await getDownloadURL(uploadResult.ref);
 

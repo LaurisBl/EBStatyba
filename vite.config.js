@@ -9,6 +9,7 @@ export default defineConfig({
         admin: 'admin.html', // Ensures admin.html is built and copied
         projectDetail: 'project-detail.html', // Ensures project-detail.html is built and copied
         adminProject: 'admin-project.html', // Build admin project detail page
+        projectsListing: 'projects/index.html', // Build public projects listing page
       }
     }
   }

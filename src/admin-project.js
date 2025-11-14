@@ -14,7 +14,7 @@ import { updateProjectInFirebase, deleteProjectFromFirebase } from './admin-data
 import { setLightboxImages, registerLightboxTrigger } from './gallery-lightbox.js';
 
 const CONFIG = {
-  allowlistDocPath: `artifacts/${firebaseConfig.projectId}/private/config/adminAllowlist`,
+  allowlistDocPath: `artifacts/${firebaseConfig.projectId}/private/adminAllowlist`,
 };
 
 const STATE = {
@@ -70,7 +70,6 @@ document.addEventListener('DOMContentLoaded', () => {
   STATE.projectId = new URLSearchParams(window.location.search).get('id');
   cacheDom();
   bindEvents();
-  startAllowlistPrefetch();
   initializeAuthFlow();
   updateSelectedImageFilename();
 });
@@ -675,7 +674,8 @@ async function fetchAllowlist() {
 
   if (db && CONFIG.allowlistDocPath) {
     try {
-      const docRef = doc(db, CONFIG.allowlistDocPath);
+      const allowlistDocPath = normalizeAllowlistDocPath(CONFIG.allowlistDocPath);
+      const docRef = doc(db, allowlistDocPath);
       const snapshot = await getDoc(docRef);
       if (snapshot.exists()) {
         const data = snapshot.data() || {};
@@ -701,6 +701,16 @@ function isEmailAllowlisted(email) {
   const normalized = (email || '').trim().toLowerCase();
   if (!normalized) return false;
   return STATE.allowlistedEmails.has(normalized);
+}
+
+function normalizeAllowlistDocPath(path) {
+  if (!path) return `artifacts/${firebaseConfig.projectId}/private/adminAllowlist`;
+  const segments = path.split('/').filter(Boolean);
+  if (segments.length % 2 !== 0) {
+    console.warn('admin-project: allowlist path had odd segment count; falling back to default path.');
+    return `artifacts/${firebaseConfig.projectId}/private/adminAllowlist`;
+  }
+  return segments.join('/');
 }
 const THUMB_ZOOM_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
   <path d="M12 5v14" />

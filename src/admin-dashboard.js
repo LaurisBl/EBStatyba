@@ -23,7 +23,7 @@ const CONFIG = {
   messageReadStorageKey: 'statyba:lastMessageReadTs',
   notifPromptStorageKey: 'statyba:notificationsPrompted',
   languageStorageKey: 'statyba:adminLanguage',
-  allowlistDocPath: `artifacts/${firebaseConfig.projectId}/private/config/adminAllowlist`,
+  allowlistDocPath: `artifacts/${firebaseConfig.projectId}/private/adminAllowlist`,
   maxNotifications: 3,
 };
 
@@ -371,7 +371,6 @@ document.addEventListener('DOMContentLoaded', () => {
   initializeLanguageFeatures();
   attachBaseState();
   bindUiEvents();
-  startAllowlistPrefetch();
   initializeAuthFlow();
 });
 
@@ -746,18 +745,22 @@ async function fetchAllowlist() {
 
   if (db && CONFIG.allowlistDocPath) {
     try {
-      const docRef = doc(db, CONFIG.allowlistDocPath);
+      const allowlistDocPath = normalizeAllowlistDocPath(CONFIG.allowlistDocPath);
+      const docRef = doc(db, allowlistDocPath);
       const snapshot = await getDoc(docRef);
       if (snapshot.exists()) {
         const data = snapshot.data() || {};
         const docEmails = Array.isArray(data.emails) ? data.emails : [];
         docEmails.map(normalizeEmail).filter(Boolean).forEach((email) => emails.add(email));
       } else {
-        await setDoc(docRef, { emails: [] }, { merge: true });
-        console.warn('admin-dashboard.js: allowlist document was missing; created placeholder.');
+        console.warn('admin-dashboard.js: allowlist document missing; skipping auto-create to avoid permission errors.');
       }
     } catch (error) {
-      console.warn('admin-dashboard.js: allowlist Firestore warning', error);
+      if (error?.code === 'permission-denied') {
+        console.warn('admin-dashboard.js: allowlist Firestore permission warning; falling back to env allowlist only.');
+      } else {
+        console.warn('admin-dashboard.js: allowlist Firestore warning', error);
+      }
     }
   }
 
@@ -772,6 +775,16 @@ function normalizeEmail(email) {
 function isEmailAllowlisted(email) {
   const normalized = normalizeEmail(email);
   return normalized && STATE.allowlistedEmails.has(normalized);
+}
+
+function normalizeAllowlistDocPath(path) {
+  if (!path) return `artifacts/${firebaseConfig.projectId}/private/adminAllowlist`;
+  const segments = path.split('/').filter(Boolean);
+  if (segments.length % 2 !== 0) {
+    console.warn('admin-dashboard: allowlist path had odd segment count; falling back to default path.');
+    return `artifacts/${firebaseConfig.projectId}/private/adminAllowlist`;
+  }
+  return segments.join('/');
 }
 
 // ---------------------------------------------------------------------------

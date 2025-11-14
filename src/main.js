@@ -31,6 +31,68 @@ const THUMB_ZOOM_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentCol
   <path d="M5 12h14" />
 </svg>`;
 
+const PROJECT_CACHE_KEY = 'statyba:projectsCache:v1';
+const PROJECT_DETAIL_CACHE_PREFIX = 'statyba:projectDetail:v1:';
+const PROJECT_CACHE_TTL_MS = 1000 * 60 * 5; // 5 minutes
+const PROJECT_DETAIL_CACHE_TTL_MS = 1000 * 60 * 10; // 10 minutes
+
+function readCacheEntry(key, ttlMs) {
+  if (typeof window === 'undefined' || !window.localStorage) return null;
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return null;
+    const payload = JSON.parse(raw);
+    if (!payload || typeof payload.timestamp !== 'number') return null;
+    if (ttlMs && Date.now() - payload.timestamp > ttlMs) {
+      window.localStorage.removeItem(key);
+      return null;
+    }
+    return payload.data;
+  } catch {
+    return null;
+  }
+}
+
+function writeCacheEntry(key, data) {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  try {
+    window.localStorage.setItem(key, JSON.stringify({ data, timestamp: Date.now() }));
+  } catch (error) {
+    if (error?.name === 'QuotaExceededError') {
+      window.localStorage.removeItem(key);
+    }
+  }
+}
+
+function getCachedProjects() {
+  return readCacheEntry(PROJECT_CACHE_KEY, PROJECT_CACHE_TTL_MS) || null;
+}
+
+function cacheProjects(projects = []) {
+  writeCacheEntry(PROJECT_CACHE_KEY, projects);
+}
+
+function getCachedProjectDetail(id) {
+  if (!id) return null;
+  return readCacheEntry(`${PROJECT_DETAIL_CACHE_PREFIX}${id}`, PROJECT_DETAIL_CACHE_TTL_MS) || null;
+}
+
+function cacheProjectDetail(id, data) {
+  if (!id) return;
+  writeCacheEntry(`${PROJECT_DETAIL_CACHE_PREFIX}${id}`, data);
+}
+
+function registerServiceWorker() {
+  if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
+  if (import.meta.env?.DEV) return;
+  const base = import.meta.env?.BASE_URL || '/';
+  const normalizedBase = base.endsWith('/') ? base : `${base}/`;
+  const swUrl = `${normalizedBase}sw.js`;
+  navigator.serviceWorker
+    .register(swUrl)
+    .catch((error) => console.warn('Service worker registration failed:', error));
+}
+
 function captureDefaultEditableContent() {
   if (defaultsCaptured) return;
   defaultsCaptured = true;
@@ -139,6 +201,8 @@ function bootstrapPublicPages() {
     initProjectDetailPage();
   }
 }
+
+registerServiceWorker();
 
 document.addEventListener('DOMContentLoaded', () => {
   const start = () => bootstrapPublicPages();
@@ -268,11 +332,21 @@ export async function loadPortfolioProjects() {
     return;
   }
 
-  // Show loading spinner
-  portfolioLoading.classList.remove('hidden');
-  portfolioGrid.classList.add('hidden');
   portfolioError.classList.add('hidden');
-  showAllProjectsBtn.classList.add('hidden');
+  let renderedFromCache = false;
+  const cachedProjects = getCachedProjects();
+  if (cachedProjects?.length) {
+    renderedFromCache = true;
+    allProjectsData = cachedProjects;
+    renderProjects(allProjectsData.slice(0, 3), portfolioGrid);
+    portfolioGrid.classList.remove('hidden');
+    portfolioLoading.classList.add('hidden');
+    showAllProjectsBtn.classList.toggle('hidden', allProjectsData.length <= 3);
+  } else {
+    portfolioLoading.classList.remove('hidden');
+    portfolioGrid.classList.add('hidden');
+    showAllProjectsBtn.classList.add('hidden');
+  }
 
   try {
     if (!db) {
@@ -290,15 +364,19 @@ export async function loadPortfolioProjects() {
       allProjectsData.push({ id: doc.id, ...doc.data() });
     });
 
+    cacheProjects(allProjectsData);
     if (allProjectsData.length > 0) {
       renderProjects(allProjectsData.slice(0, 3), portfolioGrid); // Show first 3 projects
       portfolioGrid.classList.remove('hidden');
       if (allProjectsData.length > 3) {
         showAllProjectsBtn.classList.remove('hidden');
+      } else {
+        showAllProjectsBtn.classList.add('hidden');
       }
     } else {
       portfolioGrid.innerHTML = '<p class="text-center text-gray-500 col-span-full">No projects found.</p>';
       portfolioGrid.classList.remove('hidden');
+      showAllProjectsBtn.classList.add('hidden');
     }
 
     // Hide loading spinner
@@ -306,8 +384,10 @@ export async function loadPortfolioProjects() {
 
   } catch (error) {
     console.error('Error loading portfolio projects:', error);
-    portfolioLoading.classList.add('hidden');
-    portfolioError.classList.remove('hidden');
+    if (!renderedFromCache) {
+      portfolioLoading.classList.add('hidden');
+      portfolioError.classList.remove('hidden');
+    }
   }
 }
 
@@ -319,10 +399,20 @@ async function initProjectsListingPage() {
 
   if (!list || !loading || !error || !empty) return;
 
-  loading.classList.remove('hidden');
-  list.classList.add('hidden');
   error.classList.add('hidden');
   empty.classList.add('hidden');
+
+  let renderedFromCache = false;
+  const cachedProjects = getCachedProjects();
+  if (cachedProjects?.length) {
+    renderedFromCache = true;
+    renderProjects(cachedProjects, list, 'list');
+    list.classList.remove('hidden');
+    loading.classList.add('hidden');
+  } else {
+    loading.classList.remove('hidden');
+    list.classList.add('hidden');
+  }
 
   try {
     if (!db) {
@@ -337,10 +427,12 @@ async function initProjectsListingPage() {
       projects.push({ id: docSnap.id, ...docSnap.data() });
     });
 
+    cacheProjects(projects);
     loading.classList.add('hidden');
 
     if (!projects.length) {
       empty.classList.remove('hidden');
+      list.classList.add('hidden');
       return;
     }
 
@@ -348,8 +440,10 @@ async function initProjectsListingPage() {
     list.classList.remove('hidden');
   } catch (err) {
     console.error('initProjectsListingPage error:', err);
-    loading.classList.add('hidden');
-    error.classList.remove('hidden');
+    if (!renderedFromCache) {
+      loading.classList.add('hidden');
+      error.classList.remove('hidden');
+    }
   }
 }
 
@@ -386,7 +480,7 @@ function createProjectCard(project, variant = 'grid') {
     return `
       <a href="../project-detail.html?id=${project.id}" class="group bg-white border border-slate-100 rounded-3xl shadow-sm hover:shadow-2xl transition flex flex-col overflow-hidden">
         <div class="relative aspect-[4/3] overflow-hidden">
-          <img src="${thumbnailUrl}" alt="${project.title}" class="w-full h-full object-cover transition duration-500 group-hover:scale-105" loading="lazy">
+          <img src="${thumbnailUrl}" alt="${project.title}" class="w-full h-full object-cover transition duration-500 group-hover:scale-105" loading="lazy" decoding="async" fetchpriority="low">
         </div>
         <div class="p-6 space-y-3">
           <h3 class="text-xl font-semibold text-slate-900">${project.title}</h3>
@@ -405,7 +499,7 @@ function createProjectCard(project, variant = 'grid') {
   return `
     <div class="flex gap-5 p-4 rounded-2xl border border-slate-200 bg-white">
       <div class="w-32 h-24 rounded-xl overflow-hidden flex-shrink-0">
-        <img src="${thumbnailUrl}" alt="${project.title}" class="w-full h-full object-cover" loading="lazy">
+        <img src="${thumbnailUrl}" alt="${project.title}" class="w-full h-full object-cover" loading="lazy" decoding="async" fetchpriority="low">
       </div>
       <div>
         <h3 class="text-lg font-semibold text-slate-900">${project.title}</h3>
@@ -912,20 +1006,47 @@ async function loadProjectDetails() {
     };
     setPageLoaderVisible(true);
 
-    // Show loading, hide others
-    if (projectLoadingDiv) projectLoadingDiv.classList.remove('hidden');
-    if (projectErrorDiv) projectErrorDiv.classList.add('hidden');
-    if (projectDisplayDiv) projectDisplayDiv.classList.add('hidden');
+    const showErrorState = (titleText) => {
+        if (projectLoadingDiv) projectLoadingDiv.classList.add('hidden');
+        if (projectDisplayDiv) projectDisplayDiv.classList.add('hidden');
+        if (projectErrorDiv) projectErrorDiv.classList.remove('hidden');
+        if (projectTitleTag) projectTitleTag.textContent = titleText;
+    };
+
+    const showContentState = () => {
+        if (projectLoadingDiv) projectLoadingDiv.classList.add('hidden');
+        if (projectErrorDiv) projectErrorDiv.classList.add('hidden');
+        if (projectDisplayDiv) projectDisplayDiv.classList.remove('hidden');
+    };
+
+    const domRefs = {
+        projectTitleTag,
+        projectTitleElement,
+        projectDescriptionElement,
+        projectHeroImageElement,
+        projectHeroTriggerElement,
+        projectGalleryElement,
+    };
+
+    if (!projectId) {
+        console.error('No project ID found in URL.');
+        showErrorState('Project Not Found - Statyba');
+        setPageLoaderVisible(false);
+        return;
+    }
+
+    const cachedProject = getCachedProjectDetail(projectId);
+    if (cachedProject) {
+        await hydrateProjectDetailView(cachedProject, domRefs);
+        showContentState();
+        setPageLoaderVisible(false);
+    } else {
+        if (projectLoadingDiv) projectLoadingDiv.classList.remove('hidden');
+        if (projectErrorDiv) projectErrorDiv.classList.add('hidden');
+        if (projectDisplayDiv) projectDisplayDiv.classList.add('hidden');
+    }
 
     try {
-        if (!projectId) {
-            console.error('No project ID found in URL.');
-            if (projectLoadingDiv) projectLoadingDiv.classList.add('hidden');
-            if (projectErrorDiv) projectErrorDiv.classList.remove('hidden');
-            if (projectTitleTag) projectTitleTag.textContent = 'Project Not Found - Statyba';
-            return;
-        }
-
         if (!db) {
             console.error("loadProjectDetails: Firestore DB is null or undefined.");
             throw new Error("Database not initialized.");
@@ -935,97 +1056,111 @@ async function loadProjectDetails() {
         const projectSnapshot = await getDoc(projectDocRef);
 
         if (projectSnapshot.exists()) {
-            const projectData = projectSnapshot.data();
-
-            if (projectTitleElement) {
-              projectTitleElement.textContent = projectData.title || 'Untitled Project';
-            }
-            if (projectDescriptionElement) {
-              projectDescriptionElement.textContent = projectData.description || 'No description available.';
-            }
-            if (projectTitleTag) {
-                projectTitleTag.textContent = `${projectData.title} - Statyba`;
-            }
-
-            const rawImageUrls = Array.isArray(projectData.imageUrls) ? projectData.imageUrls.filter(Boolean) : [];
-            const imageElementsToWaitFor = [];
-            if (projectHeroImageElement) {
-              const heroUrl = rawImageUrls[0] || 'https://placehold.co/1200x800?text=No+Image';
-              projectHeroImageElement.loading = 'eager';
-              projectHeroImageElement.decoding = 'async';
-              projectHeroImageElement.src = heroUrl;
-              projectHeroImageElement.alt = projectData.title || 'Projektas';
-              imageElementsToWaitFor.push(projectHeroImageElement);
-            }
-
-            const lightboxItems = rawImageUrls.map((url, index) => ({
-              url,
-              alt: `${projectData.title || 'Projektas'} nuotrauka ${index + 1}`,
-              caption: projectData.title || ''
-            }));
-            if (lightboxItems.length) {
-              setLightboxImages(lightboxItems);
-            } else {
-              setLightboxImages([]);
-            }
-
-            if (projectHeroTriggerElement) {
-              registerLightboxTrigger(projectHeroTriggerElement, 0);
-              if (lightboxItems.length) {
-                projectHeroTriggerElement.removeAttribute('aria-disabled');
-              } else {
-                projectHeroTriggerElement.setAttribute('aria-disabled', 'true');
-              }
-            }
-
-            if (projectGalleryElement) {
-              projectGalleryElement.innerHTML = '';
-              const galleryImages = rawImageUrls.slice(1);
-              galleryImages.forEach((url, galleryIndex) => {
-                const button = document.createElement('button');
-                button.type = 'button';
-                button.className = 'project-gallery-thumb';
-                button.setAttribute('aria-label', `Peržiūrėti nuotrauką ${galleryIndex + 2}`);
-
-                const img = document.createElement('img');
-                img.src = url;
-                img.alt = projectData.title || 'Projektas';
-                img.loading = 'lazy';
-                img.decoding = 'async';
-                imageElementsToWaitFor.push(img);
-
-                const icon = document.createElement('span');
-                icon.className = 'project-gallery-thumb__icon';
-                icon.innerHTML = THUMB_ZOOM_ICON;
-
-                button.appendChild(img);
-                button.appendChild(icon);
-                projectGalleryElement.appendChild(button);
-
-                registerLightboxTrigger(button, galleryIndex + 1);
-              });
-            }
-
-            // Reveal page content immediately so images can continue loading underneath the overlay
-            if (projectLoadingDiv) projectLoadingDiv.classList.add('hidden');
-            if (projectDisplayDiv) projectDisplayDiv.classList.remove('hidden');
-
-            if (imageElementsToWaitFor.length) {
-              await waitForImageElements(imageElementsToWaitFor);
-            }
-
+            const projectData = { id: projectSnapshot.id, ...projectSnapshot.data() };
+            await hydrateProjectDetailView(projectData, domRefs);
+            cacheProjectDetail(projectId, projectData);
+            showContentState();
         } else {
             console.warn(`Project with ID ${projectId} not found.`);
-            if (projectLoadingDiv) projectLoadingDiv.classList.add('hidden');
-            if (projectErrorDiv) projectErrorDiv.classList.remove('hidden');
-            if (projectTitleTag) projectTitleTag.textContent = 'Project Not Found - Statyba';
+            if (!cachedProject) {
+                showErrorState('Project Not Found - Statyba');
+            }
         }
     } catch (error) {
         console.error('Error loading project details:', error);
-        if (projectLoadingDiv) projectLoadingDiv.classList.add('hidden');
-        if (projectErrorDiv) projectErrorDiv.classList.remove('hidden');
-        if (projectTitleTag) projectTitleTag.textContent = 'Error - Statyba';
+        if (!cachedProject) {
+            showErrorState('Error - Statyba');
+        }
     } finally {
         setPageLoaderVisible(false);
+    }
+}
+
+async function hydrateProjectDetailView(projectData, domRefs = {}) {
+    if (!projectData) return;
+    const {
+        projectTitleTag,
+        projectTitleElement,
+        projectDescriptionElement,
+        projectHeroImageElement,
+        projectHeroTriggerElement,
+        projectGalleryElement,
+    } = domRefs;
+
+    const fallbackTitle = projectData.title || 'Projektas';
+    if (projectTitleElement) {
+        projectTitleElement.textContent = fallbackTitle;
+    }
+    if (projectDescriptionElement) {
+        projectDescriptionElement.textContent = projectData.description || 'No description available.';
+    }
+    if (projectTitleTag) {
+        projectTitleTag.textContent = `${fallbackTitle} - Statyba`;
+    }
+
+    const rawImageUrls = Array.isArray(projectData.imageUrls) ? projectData.imageUrls.filter(Boolean) : [];
+    const heroWaiters = [];
+    const galleryWaiters = [];
+
+    if (projectHeroImageElement) {
+        const heroUrl = rawImageUrls[0] || 'https://placehold.co/1200x800?text=No+Image';
+        projectHeroImageElement.loading = 'eager';
+        projectHeroImageElement.decoding = 'async';
+        projectHeroImageElement.fetchPriority = 'high';
+        projectHeroImageElement.src = heroUrl;
+        projectHeroImageElement.alt = fallbackTitle;
+        heroWaiters.push(waitForImageElement(projectHeroImageElement));
+    }
+
+    const lightboxItems = rawImageUrls.map((url, index) => ({
+        url,
+        alt: `${fallbackTitle} nuotrauka ${index + 1}`,
+        caption: fallbackTitle || ''
+    }));
+    setLightboxImages(lightboxItems);
+
+    if (projectHeroTriggerElement) {
+        registerLightboxTrigger(projectHeroTriggerElement, 0);
+        if (lightboxItems.length) {
+            projectHeroTriggerElement.removeAttribute('aria-disabled');
+        } else {
+            projectHeroTriggerElement.setAttribute('aria-disabled', 'true');
+        }
+    }
+
+    if (projectGalleryElement) {
+        projectGalleryElement.innerHTML = '';
+        const galleryImages = rawImageUrls.slice(1);
+        galleryImages.forEach((url, galleryIndex) => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'project-gallery-thumb';
+            button.setAttribute('aria-label', `Peržiūrėti nuotrauką ${galleryIndex + 2}`);
+
+            const img = document.createElement('img');
+            img.src = url;
+            img.alt = fallbackTitle;
+            img.loading = 'lazy';
+            img.decoding = 'async';
+            img.fetchPriority = 'low';
+            galleryWaiters.push(waitForImageElement(img));
+
+            const icon = document.createElement('span');
+            icon.className = 'project-gallery-thumb__icon';
+            icon.innerHTML = THUMB_ZOOM_ICON;
+
+            button.appendChild(img);
+            button.appendChild(icon);
+            projectGalleryElement.appendChild(button);
+
+            registerLightboxTrigger(button, galleryIndex + 1);
+        });
+    }
+
+    if (heroWaiters.length) {
+        await Promise.all(heroWaiters);
+    }
+    if (galleryWaiters.length) {
+        Promise.all(galleryWaiters).catch(() => {});
     }
 }

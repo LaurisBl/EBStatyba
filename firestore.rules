@@ -2,18 +2,46 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
     function isAdmin() {
       return request.auth != null && request.auth.token.admin == true;
     }
 
+    function isAllowlisted(projectId) {
+      let allowlistPath = /databases/$(database)/documents/artifacts/$(projectId)/private/adminAllowlist;
+      return isSignedIn()
+        && request.auth.token.email != null
+        && exists(allowlistPath)
+        && get(allowlistPath).data.emails is list
+        && get(allowlistPath).data.emails.hasAny([request.auth.token.email]);
+    }
+
+    function hasAdminAccess(projectId) {
+      return isAdmin() || isAllowlisted(projectId);
+    }
+
     match /artifacts/{projectId}/public/data/messages/{messageId} {
       allow create: if true;
-      allow read, update, delete: if isAdmin();
+      allow read, update, delete: if hasAdminAccess(projectId);
     }
 
     match /artifacts/{projectId}/public/data/{document=**} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if hasAdminAccess(projectId);
+    }
+
+    // general private docs only for admins
+    match /artifacts/{projectId}/private/{document=**} {
+      allow read, write: if hasAdminAccess(projectId);
+    }
+
+    // allowlist doc must be readable by signed-in users
+    match /artifacts/{projectId}/private/adminAllowlist {
+      allow read: if isSignedIn();
+      allow write: if hasAdminAccess(projectId);
     }
   }
 }

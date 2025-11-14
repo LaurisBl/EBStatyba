@@ -18,8 +18,8 @@
     "vite": "^6.3.5"
   },
   "dependencies": {
-    "firebase-admin": "^12.7.0",
     "appwrite": "^18.1.1",
-    "firebase": "^11.9.1"
+    "firebase": "^11.10.0",
+    "firebase-admin": "^12.7.0"
   }
 }

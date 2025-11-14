@@ -321,7 +321,7 @@ function renderPortfolio() {
             <h2 class="text-4xl font-bold text-slate-900 mt-3 editable-element" id="portfolio-heading" data-editable-text-id="portfolio-heading-text" data-editable-color-id="portfolio-heading-color">Mūsų darbai</h2>
             <p class="text-lg text-slate-600 mt-4 editable-element" id="portfolio-subheading" data-editable-text-id="portfolio-subheading-text" data-editable-color-id="portfolio-subheading-color">Džiaugiamės įgyvendintais statybų projektais</p>
           </div>
-          <a href="projects/" id="show-all-projects" class="bg-white text-slate-900 border border-slate-200 px-5 py-3 rounded-full font-semibold hover:bg-slate-50 transition inline-flex justify-center editable-element" data-editable-text-id="portfolio-show-all-text" data-editable-background-color-id="portfolio-show-all-bg-color" data-editable-color-id="portfolio-show-all-color">Peržiūrėti visus</a>
+          <a href="projects/index.html" id="show-all-projects" class="bg-white text-slate-900 border border-slate-200 px-5 py-3 rounded-full font-semibold hover:bg-slate-50 transition inline-flex justify-center editable-element" data-editable-text-id="portfolio-show-all-text" data-editable-background-color-id="portfolio-show-all-bg-color" data-editable-color-id="portfolio-show-all-color">Peržiūrėti visus</a>
         </div>
         <div id="portfolio-loading" class="hidden text-center">
           <div class="spinner mx-auto mb-4"></div>
